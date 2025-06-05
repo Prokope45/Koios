@@ -1,4 +1,11 @@
-from src.enums.Template import Template
+"""ReadTemplate.py
+
+Read template file and return output to be used as llm prompt.
+
+Author: Jared Paubel jpaubel@pm.me
+version 0.1.0
+"""
+from koios.enums.Template import Template
 
 
 class ReadTemplate:

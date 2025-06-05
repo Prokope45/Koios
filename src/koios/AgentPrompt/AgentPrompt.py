@@ -11,18 +11,22 @@ from langchain_community.chat_models import ChatOllama
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 
-import os
-
-from src.enums.Template import Template
-from src.ReadTemplate.ReadTemplate import ReadTemplate
+from koios.enums.Template import Template
+from koios.ReadTemplate.ReadTemplate import ReadTemplate
 
 
 class AgentPrompt:
     """Create prompt chains for invoking agent workflow actions."""
 
-    def __init__(self) -> None:
-        """Construct AgentPrompt object."""
-        self.__local_llm = os.getenv("LOCAL_LLM", 'llama3.2')
+    def __init__(self, model: str, temperature: float) -> None:
+        """Construct AgentPrompt object.
+
+        Args:
+            model (str): Selected model to load.
+            temperature (float): Model temperature to use when generating.
+        """
+        self.__model = model
+        self.__temperature = temperature
         self.__read_prompt = ReadTemplate()
 
     @property
@@ -55,7 +59,10 @@ class AgentPrompt:
 
         # Chain (pipes between each operation)
         # StrOutputParser ensures result is in plain-text
-        llama3 = ChatOllama(model=self.__local_llm, temperature=0)
+        llama3 = ChatOllama(
+            model=self.__model,
+            temperature=self.__temperature
+        )
         generate_chain = generate_prompt | llama3 | StrOutputParser()
 
         return generate_chain
@@ -99,9 +106,9 @@ class AgentPrompt:
             )
 
         llama3_json = ChatOllama(
-            model=self.__local_llm,
-            format='json',
-            temperature=0
+            model=self.__model,
+            temperature=self.__temperature,
+            format='json'
         )
         chain = (
             router_prompt | llama3_json | JsonOutputParser()

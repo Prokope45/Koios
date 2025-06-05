@@ -1,5 +1,10 @@
-"""Module level init file.
+"""Meta package for all Koios packages.
 
-Author: Jared Paubel jpaubel2pm.me
-Version: 0.1.0
+This is the __init__ file for this package.
+
+Usage:
+    python3 -m src - execute this program (when run from project root).
+
+Author: Jared Paubel jpaubel@pm.me
+Version: 0.1
 """

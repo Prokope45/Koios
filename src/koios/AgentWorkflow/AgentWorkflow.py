@@ -14,18 +14,25 @@ version 0.1.0
 """
 from langgraph.graph import END, StateGraph
 
-from src.GraphState.GraphState import GraphState
-from src.AgentWorkflow.WorkflowActions import WorkflowActions
+from koios.GraphState.GraphState import GraphState
+from koios.AgentWorkflow.WorkflowActions import WorkflowActions
+from koios.AgentPrompt.AgentPrompt import AgentPrompt
 
 
 class AgentWorkflow:
     """AgentWorkflow class that contains the workflow for the agent."""
 
-    def __init__(self) -> None:
-        """Construct AgentWorkflow object and initializes workflow."""
-        workflow = StateGraph(GraphState)
+    def __init__(self, model: str, temperature: float) -> None:
+        """Construct AgentWorkflow object and initializes workflow.
 
-        actions = WorkflowActions()
+        Args:
+            model (str): Selected model to load.
+            temperature (float): Model temperature to use when generating.
+        """
+        agent_prompt: AgentPrompt = AgentPrompt(model, temperature)
+        actions = WorkflowActions(agent_prompt)
+
+        workflow = StateGraph(GraphState)
         workflow.add_node("web_search", actions.web_search)
         workflow.add_node("transform_query", actions.transform_query)
         workflow.add_node("generate", actions.generate)

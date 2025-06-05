@@ -5,15 +5,20 @@ Workflow actions class containing actions for agent to take.
 Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
 """
-from src.AgentPrompt.AgentPrompt import AgentPrompt
+from koios.AgentPrompt.AgentPrompt import AgentPrompt
 
 
 class WorkflowActions:
     """Provide workflow actions for agent to take."""
 
-    def __init__(self):
-        """Construct WorkflowActions object."""
-        self.__agent_prompt = AgentPrompt()
+    def __init__(self, agent_prompt: AgentPrompt):
+        """Construct WorkflowActions object.
+
+        Args:
+            agent_prompt (AgentPrompt): AgentPrompt object to use for getting
+                chains.
+        """
+        self.__agent_prompt = agent_prompt
 
     def generate(self, state: dict) -> dict:
         """Generate answer based on existing knowledge.

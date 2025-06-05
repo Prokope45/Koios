@@ -5,9 +5,9 @@ Main program to run agent workflow.
 Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
 """
-from src.AgentWorkflow.AgentWorkflow import AgentWorkflow
+from koios.AgentWorkflow.AgentWorkflow import AgentWorkflow
 
-import sys
+import streamlit
 # Below can be used to display markdown in notebook.
 # from IPython.display import display, Markdown
 
@@ -30,16 +30,45 @@ class Main:
             print("Please provide a question as an argument.")
             return
 
-    def run_agent(query: str) -> None:
-        """Run the agent workflow and write the output to a file.
+    @staticmethod
+    def run_streamlit() -> None:
+        """Run the agent workflow and display the output in a Streamlit app."""
+        streamlit.title("Koios Research Agent")
+
+        model_options = ["llama3.2"]
+        selected_model = streamlit.sidebar.selectbox(
+            "Choose the LLM Model",
+            options=model_options,
+            index=0
+        )
+        
+        # Temperature Setting
+        temperature = streamlit.sidebar.slider(
+            "Set the Temperature",
+            min_value=0.0,
+            max_value=1.0,
+            value=0.5,
+            step=0.1
+        )
+    
+        workflow = AgentWorkflow(selected_model, temperature)
+        query = streamlit.text_input("Enter your research question:", "")
+
+        should_run_query = streamlit.button("Run Query")
+
+        if len(query) > 0:
+            output = workflow.local_agent.invoke({"question": query})
+            if should_run_query:
+                if query:
+                    streamlit.write(output["generation"])
+
+    @staticmethod
+    def write_output_file(output: str) -> None:
+        """Write the output to a file.
 
         Args:
-            query (str): _description_
+            output (str): Output to be written to file.
         """
-        workflow = AgentWorkflow()
-        output = workflow.local_agent.invoke({"question": query})
-        print("=======")
-        output: str = str(output["generation"])
         print("Writing result to file...")
         writer = open("output.md", 'w')
         writer.write(output)
@@ -48,4 +77,4 @@ class Main:
 
 
 if __name__ == "__main__":
-    Main.main(sys.argv)
+    Main.run_streamlit()
