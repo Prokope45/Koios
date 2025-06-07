@@ -21,4 +21,7 @@ class Template(Enum):
 
     @property
     def path(self) -> str:
-        return "{}/templates/{}.txt".format(self.__target_dir_path, self.value)
+        return "{}/prompt_templates/{}.txt".format(
+            self.__target_dir_path,
+            self.value
+        )
