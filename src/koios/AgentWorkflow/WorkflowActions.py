@@ -5,7 +5,7 @@ Workflow actions class containing actions for agent to take.
 Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
 """
-from koios.AgentPrompt.AgentPrompt import AgentPrompt
+from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
 
 
 class WorkflowActions:
@@ -32,7 +32,10 @@ class WorkflowActions:
         """
         print("Step: Generating Final Response")
         question = state["question"]
-        context = state["context"]
+        # Ensure context is not None or empty if we skipped web search
+        context = state.get("context")
+        if not context:
+            context = "No web search context provided. Answer based on your internal knowledge."
 
         generation = self.__agent_prompt.get_generate_chain.invoke(
             {"context": context, "question": question}

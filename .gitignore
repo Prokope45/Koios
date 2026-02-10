@@ -1,5 +1,7 @@
 .vscode
 *.pyc
 *.env
+!.env.example
 venv
+.venv
 output.md

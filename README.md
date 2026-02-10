@@ -11,13 +11,14 @@ The major difference between this and the article demonstration is that this pro
 3. If any links were provided in web search, have output provide Markdown links to open.
 
 ## Getting Started:
-While any llm model may be used, `llama-3.2` is highly recommended due to its ease of use and installation process with Ollama.
-After an local llm is installed, specify it in a `.env` file as `LOCAL_LLM='<MODEL>'`.
+It is assumed that you are running local model using the developer server on LM Studio.
 
 1. Create virtual environment `python3 -m venv venv`
 2. Activate virtual environment `source venv/bin/activate`
 3. Install dependencies `pip install -r requirements.txt`
-4. Run the program `python3 src -m "<research question to ask>"`
+4. Run the program either by:
+    - Running the webapp `python3 -m src app"`
+    - Directly query the model `python3 -m src "<research question to ask>"`
 
 ## Source
 [1] https://medium.com/@sahin.samia/how-to-build-a-interactive-personal-ai-research-agent-with-llama-3-2-b2a390eed63e

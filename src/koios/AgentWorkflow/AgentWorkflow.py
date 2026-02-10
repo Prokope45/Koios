@@ -14,9 +14,9 @@ version 0.1.0
 """
 from langgraph.graph import END, StateGraph
 
-from koios.GraphState.GraphState import GraphState
-from koios.AgentWorkflow.WorkflowActions import WorkflowActions
-from koios.AgentPrompt.AgentPrompt import AgentPrompt
+from src.koios.GraphState.GraphState import GraphState
+from src.koios.AgentWorkflow.WorkflowActions import WorkflowActions
+from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
 
 
 class AgentWorkflow:

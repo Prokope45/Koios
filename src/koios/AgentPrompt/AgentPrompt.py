@@ -5,14 +5,16 @@ Agent prompt class for creating prompt chains to be used in workflow.
 Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
 """
+import re, os
+import requests
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
-from langchain_community.chat_models import ChatOllama
+from langchain_openai import ChatOpenAI
 from langchain_community.tools import DuckDuckGoSearchRun
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
 
-from koios.enums.Template import Template
-from koios.ReadTemplate.ReadTemplate import ReadTemplate
+from src.koios.enums.Template import Template
+from src.koios.ReadTemplate.ReadTemplate import ReadTemplate
 
 
 class AgentPrompt:
@@ -28,6 +30,40 @@ class AgentPrompt:
         self.__model = model
         self.__temperature = temperature
         self.__read_prompt = ReadTemplate()
+        self.__base_url = os.getenv("OPENAI_URL")
+        self.__load_model(model)
+
+    def __load_model(self, model_key: str) -> None:
+        """Explicitly load a model in LM Studio.
+
+        Args:
+            model_key (str): The key of the model to load.
+        """
+        try:
+            # LM Studio API for loading a model
+            # Note: The exact endpoint might vary, but /api/v1/model/load is common
+            requests.post(
+                f"{self.__base_url}/api/v1/model/load",
+                json={"modelKey": model_key},
+                timeout=5
+            )
+        except Exception:
+            pass
+
+    @staticmethod
+    def get_available_models() -> list[str]:
+        """Fetch available models from LM Studio API.
+
+        Returns:
+            list[str]: List of model keys.
+        """
+        try:
+            response = requests.get(f"{os.getenv('OPENAI_URL', '')}/api/v1/models", timeout=2)
+            if response.status_code == 200:
+                return [model["key"] for model in response.json().get("models", [])]
+        except Exception:
+            pass
+        return ["llama3.2"]
 
     @property
     def get_web_search_tool(self) -> DuckDuckGoSearchRun:
@@ -59,11 +95,13 @@ class AgentPrompt:
 
         # Chain (pipes between each operation)
         # StrOutputParser ensures result is in plain-text
-        llama3 = ChatOllama(
+        llm = ChatOpenAI(
+            base_url=f"{self.__base_url}/v1",
+            api_key="lm-studio",
             model=self.__model,
             temperature=self.__temperature
         )
-        generate_chain = generate_prompt | llama3 | StrOutputParser()
+        generate_chain = generate_prompt | llm | StrOutputParser() | self.__remove_special_tokens
 
         return generate_chain
 
@@ -85,6 +123,41 @@ class AgentPrompt:
         """
         return self.__prompt_using_json(Template.QUERY)
 
+    def __remove_special_tokens(self, text: str) -> str:
+        """Remove Llama 3 special tokens from LLM output.
+
+        Args:
+            text (str): Raw LLM output.
+
+        Returns:
+            str: Cleaned output.
+        """
+        special_tokens = [
+            "<|begin_of_text|>",
+            "<|eot_id|>",
+            "<|start_header_id|>",
+            "<|end_header_id|>",
+            "<|reserved_special_token"
+        ]
+        for token in special_tokens:
+            text = text.replace(token, "")
+        return text.strip()
+
+    def __extract_json(self, text: str) -> str:
+        """Extract JSON block from text.
+
+        Args:
+            text (str): Text containing JSON.
+
+        Returns:
+            str: Extracted JSON string.
+        """
+        if "{" in text and "}" in text:
+            match = re.search(r'(\{.*\})', text, re.DOTALL)
+            if match:
+                return match.group(1)
+        return text
+
     def __prompt_using_json(self, template: Template = Template.ROUTER) -> str:
         """Generation stage of agent.
 
@@ -105,12 +178,15 @@ class AgentPrompt:
             input_variables=["question"],
             )
 
-        llama3_json = ChatOllama(
+        llm = ChatOpenAI(
+            base_url=f"{self.__base_url}/v1",
+            api_key="lm-studio",
             model=self.__model,
-            temperature=self.__temperature,
-            format='json'
+            temperature=self.__temperature
         )
+
+        # We use StrOutputParser first, then remove tokens, then extract JSON, then JsonOutputParser
         chain = (
-            router_prompt | llama3_json | JsonOutputParser()
+            router_prompt | llm | StrOutputParser() | self.__remove_special_tokens | self.__extract_json | JsonOutputParser()
         )
         return chain
