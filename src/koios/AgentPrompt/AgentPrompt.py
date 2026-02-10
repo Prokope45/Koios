@@ -10,8 +10,8 @@ import requests
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from langchain_openai import ChatOpenAI
-from langchain_community.tools import DuckDuckGoSearchRun
-from langchain_community.utilities import DuckDuckGoSearchAPIWrapper
+from langchain_community.tools import DuckDuckGoSearchRun, WikipediaQueryRun
+from langchain_community.utilities import DuckDuckGoSearchAPIWrapper, WikipediaAPIWrapper
 
 from src.koios.enums.Template import Template
 from src.koios.ReadTemplate.ReadTemplate import ReadTemplate
@@ -52,29 +52,42 @@ class AgentPrompt:
 
     @staticmethod
     def get_available_models() -> list[str]:
-        """Fetch available models from LM Studio API.
+        """Fetch available models from OpenAI-compatible API.
 
         Returns:
-            list[str]: List of model keys.
+            list[str]: List of model IDs.
         """
         try:
-            response = requests.get(f"{os.getenv('OPENAI_URL', '')}/api/v1/models", timeout=2)
+            base_url = os.getenv('OPENAI_URL', 'http://127.0.0.1:1234')
+            response = requests.get(f"{base_url}/v1/models", timeout=2)
             if response.status_code == 200:
-                return [model["key"] for model in response.json().get("models", [])]
+                # OpenAI standard returns a list of model objects with an 'id' field
+                return [model["id"] for model in response.json().get("data", [])]
         except Exception:
             pass
         return ["llama3.2"]
 
-    @property
-    def get_web_search_tool(self) -> DuckDuckGoSearchRun:
-        """Web search stage of agent.
+    def web_search_with_fallback(self, query: str) -> str:
+        """Perform web search with fallback to Wikipedia on rate limit.
+
+        Args:
+            query (str): The search query.
 
         Returns:
-            DuckDuckGoSearchRun: Runnable tool for web search.
+            str: Search results or Wikipedia summary.
         """
-        wrapper = DuckDuckGoSearchAPIWrapper(max_results=25)
-        web_search_tool = DuckDuckGoSearchRun(api_wrapper=wrapper)
-        return web_search_tool
+        try:
+            wrapper = DuckDuckGoSearchAPIWrapper(max_results=10)
+            ddg = DuckDuckGoSearchRun(api_wrapper=wrapper)
+            return ddg.invoke(query)
+        except Exception as e:
+            print(f"DuckDuckGo search failed or rate limited: {e}")
+            print("Falling back to Wikipedia...")
+            try:
+                wiki = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper())
+                return wiki.invoke(query)
+            except Exception as wiki_e:
+                return f"Search failed: {e}. Fallback failed: {wiki_e}"
 
     @property
     def get_generate_chain(self) -> str:
@@ -88,9 +101,15 @@ class AgentPrompt:
         Returns:
             str: String chain of prompt template processed by LLM.
         """
+        template_content = self.__read_prompt.get_contents(Template.GENERATE)
+        
+        # Add history to the template if it's not there
+        if "{history}" not in template_content:
+            template_content = "Conversation History: {history}\n\n" + template_content
+
         generate_prompt = PromptTemplate(
-            template=self.__read_prompt.get_contents(Template.GENERATE),
-            input_variables=["question", "context"],
+            template=template_content,
+            input_variables=["question", "context", "history"],
         )
 
         # Chain (pipes between each operation)
@@ -178,11 +197,12 @@ class AgentPrompt:
             input_variables=["question"],
             )
 
+        # Use temperature 0 for deterministic routing and query transformation
         llm = ChatOpenAI(
             base_url=f"{self.__base_url}/v1",
             api_key="lm-studio",
             model=self.__model,
-            temperature=self.__temperature
+            temperature=0
         )
 
         # We use StrOutputParser first, then remove tokens, then extract JSON, then JsonOutputParser

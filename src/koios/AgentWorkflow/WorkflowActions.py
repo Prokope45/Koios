@@ -32,13 +32,19 @@ class WorkflowActions:
         """
         print("Step: Generating Final Response")
         question = state["question"]
+        history = state.get("history", [])
+        
         # Ensure context is not None or empty if we skipped web search
         context = state.get("context")
         if not context:
             context = "No web search context provided. Answer based on your internal knowledge."
 
+        # We can pass history to the chain if we update the template, 
+        # but for now let's just include it in the context or question if needed.
+        # A better way is to update the prompt template to handle history.
+        
         generation = self.__agent_prompt.get_generate_chain.invoke(
-            {"context": context, "question": question}
+            {"context": context, "question": question, "history": history}
         )
         return {"generation": generation}
 
@@ -70,7 +76,7 @@ class WorkflowActions:
         """
         search_query = state['search_query']
         print(f'Step: Searching the Web for: "{search_query}"')
-        search_result = self.__agent_prompt.get_web_search_tool.invoke(
+        search_result = self.__agent_prompt.web_search_with_fallback(
             search_query
         )
         return {"context": search_result}
@@ -89,9 +95,13 @@ class WorkflowActions:
         output = self.__agent_prompt.get_router_chain.invoke(
             {"question": question}
         )
-        if output['choice'] == "web_search":
+        
+        choice = output.get('choice', 'generate')
+        print(f"Step: Router Decision: {choice}")
+        
+        if choice == "web_search":
             print("Step: Routing Query to Web Search")
             return "web_search"
-        elif output['choice'] == 'generate':
+        else:
             print("Step: Routing Query to Generation")
             return "generate"

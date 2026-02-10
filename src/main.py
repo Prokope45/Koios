@@ -72,8 +72,19 @@ class Main:
     @staticmethod
     def run_streamlit() -> None:
         """Run the agent workflow and display the output in a Streamlit app."""
+        config = Config()
+        config.setup()
+        
+        streamlit.set_page_config(page_title="Koios Research Agent", layout="wide")
         streamlit.title("Koios Research Agent")
 
+        # Initialize session state for chat history
+        if "messages" not in streamlit.session_state:
+            streamlit.session_state.messages = []
+
+        # Sidebar configuration
+        streamlit.sidebar.title("Settings")
+        
         # Fetch models from API via AgentPrompt
         model_options = AgentPrompt.get_available_models()
 
@@ -85,24 +96,52 @@ class Main:
         
         # Temperature Setting
         temperature = streamlit.sidebar.slider(
-            "Set the creativity",
+            "Set the Temperature",
             min_value=0.0,
             max_value=1.0,
             value=0.5,
             step=0.1
         )
+
+        if streamlit.sidebar.button("Clear Chat History"):
+            streamlit.session_state.messages = []
+            streamlit.rerun()
     
         workflow = AgentWorkflow(selected_model, temperature)
-        query = streamlit.text_input("Enter your research question:", "")
 
-        if streamlit.button("Run Query"):
-            if query:
-                with streamlit.spinner("Generating research report..."):
-                    output = workflow.local_agent.invoke({"question": query})
-                    streamlit.markdown("### Research Report")
-                    streamlit.write(output["generation"])
-            else:
-                streamlit.warning("Please enter a research question.")
+        # Display chat messages from history on app rerun
+        for message in streamlit.session_state.messages:
+            with streamlit.chat_message(message["role"]):
+                streamlit.markdown(message["content"])
+
+        # React to user input
+        if prompt := streamlit.chat_input("Enter your research question:"):
+            # Display user message in chat message container
+            with streamlit.chat_message("user"):
+                streamlit.markdown(prompt)
+            
+            # Add user message to chat history
+            streamlit.session_state.messages.append({"role": "user", "content": prompt})
+
+            # Prepare history for the agent (excluding the current prompt)
+            history = streamlit.session_state.messages[:-1]
+
+            # Display assistant response in chat message container
+            with streamlit.chat_message("assistant"):
+                with streamlit.spinner("Thinking..."):
+                    # Invoke agent with question and history
+                    output = workflow.local_agent.invoke({
+                        "question": prompt,
+                        "history": history,
+                        "context": "",
+                        "generation": "",
+                        "search_query": ""
+                    })
+                    response = output["generation"]
+                    streamlit.markdown(response)
+            
+            # Add assistant response to chat history
+            streamlit.session_state.messages.append({"role": "assistant", "content": response})
 
     @staticmethod
     def write_output_file(output: str) -> None:
