@@ -96,7 +96,7 @@ class Main:
         
         # Temperature Setting
         temperature = streamlit.sidebar.slider(
-            "Set the Temperature",
+            "Set the creativity",
             min_value=0.0,
             max_value=1.0,
             value=0.5,
