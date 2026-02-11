@@ -6,6 +6,7 @@ Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
 """
 import re, os
+import time
 import requests
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
@@ -20,6 +21,9 @@ from src.koios.ReadTemplate.ReadTemplate import ReadTemplate
 class AgentPrompt:
     """Create prompt chains for invoking agent workflow actions."""
 
+    # Class-level variable to track last DuckDuckGo search time
+    _last_ddg_search_time = 0
+
     def __init__(self, model: str, temperature: float) -> None:
         """Construct AgentPrompt object.
 
@@ -31,37 +35,22 @@ class AgentPrompt:
         self.__temperature = temperature
         self.__read_prompt = ReadTemplate()
         self.__base_url = os.getenv("OPENAI_URL")
-        self.__load_model(model)
-
-    def __load_model(self, model_key: str) -> None:
-        """Explicitly load a model in LM Studio.
-
-        Args:
-            model_key (str): The key of the model to load.
-        """
-        try:
-            # LM Studio API for loading a model
-            # Note: The exact endpoint might vary, but /api/v1/model/load is common
-            requests.post(
-                f"{self.__base_url}/api/v1/model/load",
-                json={"modelKey": model_key},
-                timeout=5
-            )
-        except Exception:
-            pass
 
     @staticmethod
     def get_available_models() -> list[str]:
-        """Fetch available models from OpenAI-compatible API.
+        """Fetch available models from the OpenAI-compatible API.
 
         Returns:
-            list[str]: List of model IDs.
+            list[str]: List of model IDs that are currently loaded on the server.
         """
         try:
-            base_url = os.getenv('OPENAI_URL', 'http://127.0.0.1:1234')
+            # Use the configured OPENAI_URL; fall back to default if not set.
+            base_url = os.getenv('OPENAI_URL')
+            if not base_url:
+                base_url = 'http://127.0.0.1:1234'   # default local server
             response = requests.get(f"{base_url}/v1/models", timeout=2)
             if response.status_code == 200:
-                # OpenAI standard returns a list of model objects with an 'id' field
+                # OpenAI-compatible API returns a list of model objects with an 'id' field
                 return [model["id"] for model in response.json().get("data", [])]
         except Exception:
             pass
@@ -77,6 +66,19 @@ class AgentPrompt:
             str: Search results or Wikipedia summary.
         """
         try:
+            # Enforce rate limit: DuckDuckGo allows 1 request per second
+            current_time = time.time()
+            time_since_last_search = current_time - AgentPrompt._last_ddg_search_time
+            
+            if time_since_last_search < 1.0:
+                # Wait for the remaining time to respect the 1-second rate limit
+                sleep_time = 1.0 - time_since_last_search
+                print(f"Rate limiting: waiting {sleep_time:.2f}s before DuckDuckGo search...")
+                time.sleep(sleep_time)
+            
+            # Update the last search time
+            AgentPrompt._last_ddg_search_time = time.time()
+            
             wrapper = DuckDuckGoSearchAPIWrapper(max_results=10)
             ddg = DuckDuckGoSearchRun(api_wrapper=wrapper)
             return ddg.invoke(query)
