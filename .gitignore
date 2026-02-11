@@ -7,3 +7,7 @@ venv
 output.md
 db/
 temp_uploads/
+
+# Docker
+docker-compose.override.yml
+.dockerignore
