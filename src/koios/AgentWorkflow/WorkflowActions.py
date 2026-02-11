@@ -6,19 +6,23 @@ Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
 """
 from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
+from src.koios.DocumentStore import DocumentStore
 
 
 class WorkflowActions:
     """Provide workflow actions for agent to take."""
 
-    def __init__(self, agent_prompt: AgentPrompt):
+    def __init__(self, agent_prompt: AgentPrompt, enable_internet_search: bool = False):
         """Construct WorkflowActions object.
 
         Args:
             agent_prompt (AgentPrompt): AgentPrompt object to use for getting
                 chains.
+            enable_internet_search (bool): Whether to allow web search.
         """
         self.__agent_prompt = agent_prompt
+        self.__enable_internet_search = enable_internet_search
+        self.__doc_store = DocumentStore()
 
     def generate(self, state: dict) -> dict:
         """Generate answer based on existing knowledge.
@@ -37,12 +41,8 @@ class WorkflowActions:
         # Ensure context is not None or empty if we skipped web search
         context = state.get("context")
         if not context:
-            context = "No web search context provided. Answer based on your internal knowledge."
+            context = "No additional context provided. Answer based on your internal knowledge."
 
-        # We can pass history to the chain if we update the template, 
-        # but for now let's just include it in the context or question if needed.
-        # A better way is to update the prompt template to handle history.
-        
         generation = self.__agent_prompt.get_generate_chain.invoke(
             {"context": context, "question": question, "history": history}
         )
@@ -81,7 +81,43 @@ class WorkflowActions:
         )
         return {"context": search_result}
 
-    def route_question(self, state: dict) -> dict:
+    def doc_search(self, state: dict) -> dict:
+        """Search document store based on the question.
+
+        Args:
+            state (dict): The current graph state.
+
+        Returns:
+            state (dict): Appended document results to context.
+        """
+        question = state['question']
+        print(f'Step: Searching Document Store for: "{question}"')
+        docs = self.__doc_store.search(question)
+        context = "\n\n".join([doc.page_content for doc in docs])
+        return {"context": context}
+
+    def decide_after_doc_search(self, state: dict) -> str:
+        """Determine whether to proceed to web search or generation.
+
+        Args:
+            state (dict): The current graph state.
+
+        Returns:
+            str: Next node to call.
+        """
+        context = state.get("context", "")
+        if not context or len(context.strip()) == 0:
+            if self.__enable_internet_search:
+                print("Step: No relevant documents found. Routing to Web Search.")
+                return "web_search"
+            else:
+                print("Step: No relevant documents found and Internet Search disabled. Routing to Generation.")
+                return "generate"
+        else:
+            print("Step: Relevant documents found. Routing to Generation.")
+            return "generate"
+
+    def route_question(self, state: dict) -> str:
         """Route question to web search or generation.
 
         Args:
@@ -100,8 +136,9 @@ class WorkflowActions:
         print(f"Step: Router Decision: {choice}")
         
         if choice == "web_search":
-            print("Step: Routing Query to Web Search")
-            return "web_search"
+            # We always try doc search first if router thinks we need external info
+            print("Step: Routing Query to Document Search")
+            return "doc_search"
         else:
             print("Step: Routing Query to Generation")
             return "generate"

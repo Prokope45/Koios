@@ -5,3 +5,5 @@
 venv
 .venv
 output.md
+db/
+temp_uploads/

@@ -5,6 +5,7 @@ Main program to run agent workflow.
 Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
 """
+import os
 from src.koios.AgentWorkflow.AgentWorkflow import AgentWorkflow
 from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
 from src.config import Config
@@ -52,14 +53,18 @@ class Main:
         """
         print(f"Running agent with question: {question}")
         
+        config = Config()
+        config.setup()
+        
         # Fetch models and pick the first one as default
         model_options = AgentPrompt.get_available_models()
         selected_model = model_options[0] if model_options else "llama3.2"
         temperature = 0.5
         
         print(f"Using model: {selected_model} (temp: {temperature})")
+        print(f"Internet search enabled: {config.enable_internet_search}")
         
-        workflow = AgentWorkflow(selected_model, temperature)
+        workflow = AgentWorkflow(selected_model, temperature, enable_internet_search=config.enable_internet_search)
         output = workflow.local_agent.invoke({"question": question})
         
         generation = output.get("generation", "No generation produced.")
@@ -68,6 +73,12 @@ class Main:
         print("\n-----------------------\n")
         
         Main.write_output_file(generation)
+
+    @staticmethod
+    @streamlit.cache_resource
+    def get_document_store():
+        from src.koios.DocumentStore import DocumentStore
+        return DocumentStore()
 
     @staticmethod
     def run_streamlit() -> None:
@@ -103,11 +114,54 @@ class Main:
             step=0.1
         )
 
+        # Internet Search Toggle
+        enable_internet_search = streamlit.sidebar.toggle(
+            "Enable Internet Search",
+            value=config.enable_internet_search
+        )
+
+        streamlit.sidebar.divider()
+        streamlit.sidebar.subheader("Document Store")
+        
+        doc_store = Main.get_document_store()
+
+        uploaded_files = streamlit.sidebar.file_uploader(
+            "Upload PDF documentation",
+            type="pdf",
+            accept_multiple_files=True
+        )
+
+        if uploaded_files:
+            for uploaded_file in uploaded_files:
+                # Save file temporarily to process it
+                temp_dir = "temp_uploads"
+                os.makedirs(temp_dir, exist_ok=True)
+                file_path = os.path.join(temp_dir, uploaded_file.name)
+                
+                # Only process if not already in store (simple check by filename)
+                existing_docs = doc_store.get_all_documents()
+                if uploaded_file.name not in existing_docs:
+                    with open(file_path, "wb") as f:
+                        f.write(uploaded_file.getbuffer())
+                    
+                    with streamlit.sidebar.spinner(f"Indexing {uploaded_file.name}..."):
+                        doc_store.add_pdf(file_path)
+                    streamlit.sidebar.success(f"Indexed {uploaded_file.name}")
+
+        # Show uploaded documents
+        docs_in_store = doc_store.get_all_documents()
+        if docs_in_store:
+            streamlit.sidebar.write("Uploaded Documents:")
+            for doc_name in docs_in_store:
+                streamlit.sidebar.text(f"📄 {doc_name}")
+        else:
+            streamlit.sidebar.info("No documents uploaded yet.")
+
         if streamlit.sidebar.button("Clear Chat History"):
             streamlit.session_state.messages = []
             streamlit.rerun()
     
-        workflow = AgentWorkflow(selected_model, temperature)
+        workflow = AgentWorkflow(selected_model, temperature, enable_internet_search=enable_internet_search)
 
         # Display chat messages from history on app rerun
         for message in streamlit.session_state.messages:

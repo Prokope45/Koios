@@ -9,3 +9,8 @@ streamlit
 requests
 langchain-openai
 wikipedia
+pypdf
+chromadb
+langchain-chroma
+sentence-transformers
+langchain-huggingface

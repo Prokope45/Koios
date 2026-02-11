@@ -22,28 +22,40 @@ from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
 class AgentWorkflow:
     """AgentWorkflow class that contains the workflow for the agent."""
 
-    def __init__(self, model: str, temperature: float) -> None:
+    def __init__(self, model: str, temperature: float, enable_internet_search: bool = False) -> None:
         """Construct AgentWorkflow object and initializes workflow.
 
         Args:
             model (str): Selected model to load.
             temperature (float): Model temperature to use when generating.
+            enable_internet_search (bool): Whether to allow web search.
         """
         agent_prompt: AgentPrompt = AgentPrompt(model, temperature)
-        actions = WorkflowActions(agent_prompt)
+        actions = WorkflowActions(agent_prompt, enable_internet_search)
 
         workflow = StateGraph(GraphState)
         workflow.add_node("web_search", actions.web_search)
+        workflow.add_node("doc_search", actions.doc_search)
         workflow.add_node("transform_query", actions.transform_query)
         workflow.add_node("generate", actions.generate)
 
         workflow.set_conditional_entry_point(
             actions.route_question,
             {
-                "web_search": "transform_query",
+                "doc_search": "doc_search",
                 "generate": "generate",
             },
         )
+        
+        workflow.add_conditional_edges(
+            "doc_search",
+            actions.decide_after_doc_search,
+            {
+                "web_search": "transform_query",
+                "generate": "generate",
+            }
+        )
+        
         workflow.add_edge("transform_query", "web_search")
         workflow.add_edge("web_search", "generate")
         workflow.add_edge("generate", END)
