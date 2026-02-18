@@ -17,6 +17,7 @@ from ddgs import DDGS
 
 from src.koios.enums.Template import Template
 from src.koios.ReadTemplate.ReadTemplate import ReadTemplate
+from src.koios.ToonSerializer.ToonSerializer import ToonSerializer
 
 
 class AgentPrompt:
@@ -60,17 +61,22 @@ class AgentPrompt:
     def web_search_with_fallback(self, query: str) -> str:
         """Perform web search with fallback to Wikipedia on rate limit.
 
+        Results from DuckDuckGo are encoded as TOON before being returned so
+        that the downstream generate prompt receives a token-efficient
+        representation of the search context.
+
         Args:
             query (str): The search query.
 
         Returns:
-            str: Search results or Wikipedia summary.
+            str: TOON-encoded search results, or a Wikipedia summary string
+                on fallback.
         """
         try:
             # Enforce rate limit: DuckDuckGo allows 1 request per second
             current_time = time.time()
             time_since_last_search = current_time - AgentPrompt._last_ddg_search_time
-            
+
             if time_since_last_search < 1.0:
                 # Wait for the remaining time to respect the 1-second rate limit
                 sleep_time = 1.0 - time_since_last_search
@@ -81,9 +87,13 @@ class AgentPrompt:
             AgentPrompt._last_ddg_search_time = time.time()
 
             with DDGS() as ddgs:
-                result = ddgs.text(query, safesearch="moderate", max_results=10, page=1)
-                print(result)
-                return result
+                results = ddgs.text(query, safesearch="moderate", max_results=10, page=1)
+                print(results)
+
+            # Encode the list of {"title", "href", "body"} dicts as TOON.
+            toon_context = ToonSerializer.dumps({"results": results})
+            return toon_context
+
         except Exception as e:
             print(f"DuckDuckGo search failed or rate limited: {e}")
             print("Falling back to Wikipedia...")

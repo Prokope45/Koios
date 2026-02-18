@@ -7,6 +7,7 @@ version 0.1.0
 """
 from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
 from src.koios.DocumentStore import DocumentStore
+from src.koios.ToonSerializer.ToonSerializer import ToonSerializer
 
 
 class WorkflowActions:
@@ -86,6 +87,10 @@ class WorkflowActions:
     def doc_search(self, state: dict) -> dict:
         """Search document store based on the question.
 
+        Retrieved documents are encoded as TOON before being stored in the
+        graph state so that the downstream generate prompt receives a
+        token-efficient representation of the document context.
+
         Args:
             state (dict): The current graph state.
 
@@ -95,7 +100,18 @@ class WorkflowActions:
         question = state['question']
         print(f'Step: Searching Document Store for: "{question}"')
         docs = self.__doc_store.search(question)
-        context = "\n\n".join([doc.page_content for doc in docs])
+
+        # Build a list of document dicts and encode as TOON.
+        # Each document is represented with its source metadata (if available)
+        # and its text content.
+        doc_records = [
+            {
+                "source": doc.metadata.get("source", "unknown") if doc.metadata else "unknown",
+                "content": doc.page_content,
+            }
+            for doc in docs
+        ]
+        context = ToonSerializer.dumps({"documents": doc_records})
         return {"context": context}
 
     def decide_after_doc_search(self, state: dict) -> str:
