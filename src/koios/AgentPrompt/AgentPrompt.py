@@ -13,6 +13,7 @@ from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from langchain_openai import ChatOpenAI
 from langchain_community.tools import DuckDuckGoSearchRun, WikipediaQueryRun
 from langchain_community.utilities import DuckDuckGoSearchAPIWrapper, WikipediaAPIWrapper
+from ddgs import DDGS
 
 from src.koios.enums.Template import Template
 from src.koios.ReadTemplate.ReadTemplate import ReadTemplate
@@ -75,13 +76,14 @@ class AgentPrompt:
                 sleep_time = 1.0 - time_since_last_search
                 print(f"Rate limiting: waiting {sleep_time:.2f}s before DuckDuckGo search...")
                 time.sleep(sleep_time)
-            
+
             # Update the last search time
             AgentPrompt._last_ddg_search_time = time.time()
-            
-            wrapper = DuckDuckGoSearchAPIWrapper(max_results=10)
-            ddg = DuckDuckGoSearchRun(api_wrapper=wrapper)
-            return ddg.invoke(query)
+
+            with DDGS() as ddgs:
+                result = ddgs.text(query, safesearch="moderate", max_results=10, page=1)
+                print(result)
+                return result
         except Exception as e:
             print(f"DuckDuckGo search failed or rate limited: {e}")
             print("Falling back to Wikipedia...")
