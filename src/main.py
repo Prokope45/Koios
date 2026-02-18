@@ -157,6 +157,11 @@ class Main:
         else:
             streamlit.sidebar.info("No documents uploaded yet.")
 
+        if streamlit.sidebar.button("Clear Uploaded Documents"):
+            doc_store.clear_all_documents()
+            Main.get_document_store.clear()
+            streamlit.rerun()
+
         if streamlit.sidebar.button("Clear Chat History"):
             streamlit.session_state.messages = []
             streamlit.rerun()

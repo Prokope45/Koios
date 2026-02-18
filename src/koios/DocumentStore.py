@@ -69,3 +69,10 @@ class DocumentStore:
             if meta and "source" in meta:
                 sources.add(os.path.basename(meta["source"]))
         return list(sources)
+
+    def clear_all_documents(self) -> None:
+        """Remove all documents from the vector store."""
+        results = self.__vectorstore.get()
+        ids = results.get("ids", [])
+        if ids:
+            self.__vectorstore.delete(ids=ids)

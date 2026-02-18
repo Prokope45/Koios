@@ -1,13 +1,16 @@
 """AgentWorkflow.py
 
-Agent workflow class establishing decision pathway for agent. First determines
-if response generation should be done initially or if web search is needed to
-add more context. Then goes through the graph to the appropriate node, either
-skipping directly to generation or making web search then generating a
-response.
+Agent workflow class establishing decision pathway for agent. The router first
+determines whether the question requires consulting the local document store or
+can be answered directly from the model's internal knowledge.
 
 Path:
-Generate OR transform query into web-readable query -> search web -> generate
+  Router
+    ├── doc_search → [if empty & internet enabled] transform_query → web_search → generate
+    │             → [if empty & internet disabled] generate
+    │             → [if docs found] generate
+    ├── web_search → transform_query → web_search → generate
+    └── generate
 
 Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
@@ -43,6 +46,7 @@ class AgentWorkflow:
             actions.route_question,
             {
                 "doc_search": "doc_search",
+                "web_search": "transform_query",
                 "generate": "generate",
             },
         )

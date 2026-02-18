@@ -74,7 +74,9 @@ class WorkflowActions:
         Returns:
             state (dict): Appended web results to context.
         """
-        search_query = state['search_query']
+        # Prefer the optimized search_query produced by transform_query; fall
+        # back to the raw question if transform_query was somehow skipped.
+        search_query = state.get('search_query') or state['question']
         print(f'Step: Searching the Web for: "{search_query}"')
         search_result = self.__agent_prompt.web_search_with_fallback(
             search_query
@@ -118,27 +120,34 @@ class WorkflowActions:
             return "generate"
 
     def route_question(self, state: dict) -> str:
-        """Route question to web search or generation.
+        """Route question to document search or generation.
+
+        Uses the router template to determine whether the question may be
+        answered from the local document store (doc_search) or directly from
+        the model's internal knowledge (generate).
 
         Args:
             state (dict): The current graph state.
 
         Returns:
-            str: Action to call.
+            str: Next node to call — either 'doc_search' or 'generate'.
         """
         print("Step: Routing Query")
         question = state['question']
         output = self.__agent_prompt.get_router_chain.invoke(
             {"question": question}
         )
-        
-        choice = output.get('choice', 'generate')
+
+        # Default to doc_search so we always try the document store when uncertain
+        choice = output.get('choice', 'doc_search')
+        if choice not in ('doc_search', 'web_search', 'generate'):
+            choice = 'doc_search'
+
         print(f"Step: Router Decision: {choice}")
-        
-        if choice == "web_search":
-            # We always try doc search first if router thinks we need external info
+        if choice == "doc_search":
             print("Step: Routing Query to Document Search")
-            return "doc_search"
+        elif choice == "web_search":
+            print("Step: Routing Query to Web Search (via Query Transform)")
         else:
             print("Step: Routing Query to Generation")
-            return "generate"
+        return choice
