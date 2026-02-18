@@ -176,21 +176,6 @@ class AgentPrompt:
             text = text.replace(token, "")
         return text.strip()
 
-    def __extract_json(self, text: str) -> str:
-        """Extract JSON block from text.
-
-        Args:
-            text (str): Text containing JSON.
-
-        Returns:
-            str: Extracted JSON string.
-        """
-        if "{" in text and "}" in text:
-            match = re.search(r'(\{.*\})', text, re.DOTALL)
-            if match:
-                return match.group(1)
-        return text
-
     def __prompt_using_json(self, template: Template = Template.ROUTER) -> str:
         """Generation stage of agent.
 
@@ -221,6 +206,6 @@ class AgentPrompt:
 
         # We use StrOutputParser first, then remove tokens, then extract JSON, then JsonOutputParser
         chain = (
-            router_prompt | llm | StrOutputParser() | self.__remove_special_tokens | self.__extract_json | JsonOutputParser()
+            router_prompt | llm | StrOutputParser() | self.__remove_special_tokens | JsonOutputParser()
         )
         return chain
