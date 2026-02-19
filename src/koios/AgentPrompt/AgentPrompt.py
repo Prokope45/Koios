@@ -5,14 +5,14 @@ Agent prompt class for creating prompt chains to be used in workflow.
 Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
 """
-import re, os
+import os
 import time
 import requests
 from langchain.prompts import PromptTemplate
 from langchain_core.output_parsers import JsonOutputParser, StrOutputParser
 from langchain_openai import ChatOpenAI
-from langchain_community.tools import DuckDuckGoSearchRun, WikipediaQueryRun
-from langchain_community.utilities import DuckDuckGoSearchAPIWrapper, WikipediaAPIWrapper
+from langchain_community.tools import WikipediaQueryRun
+from langchain_community.utilities import WikipediaAPIWrapper
 from ddgs import DDGS
 
 from src.koios.enums.Template import Template
@@ -107,22 +107,23 @@ class AgentPrompt:
     def get_generate_chain(self) -> str:
         """Generation stage of agent.
 
-        Creates template where questions and context are dynamically
-        inserted. The template instructs the agent to synthesize the search
-        results into a research report. "I don't know.." is allowed if no
-        additional information is provided in the context.
+        Creates a model-aware prompt by applying the HuggingFace chat template
+        for the loaded model. The template instructs the agent to synthesize
+        the search results into a research report. "I don't know.." is allowed
+        if no additional information is provided in the context.
 
         Returns:
             str: String chain of prompt template processed by LLM.
         """
-        template_content = self.__read_prompt.get_contents(Template.GENERATE)
-        
-        # Add history to the template if it's not there
-        if "{history}" not in template_content:
-            template_content = "Conversation History: {history}\n\n" + template_content
+        # Apply the model's chat template. LangChain {placeholders} are left
+        # intact by Jinja2 and substituted by PromptTemplate at invoke time.
+        formatted_template = self.__read_prompt.get_chat_prompt(
+            self.__model,
+            Template.GENERATE,
+        )
 
         generate_prompt = PromptTemplate(
-            template=template_content,
+            template=formatted_template,
             input_variables=["question", "context", "history"],
         )
 
@@ -134,7 +135,7 @@ class AgentPrompt:
             model=self.__model,
             temperature=self.__temperature
         )
-        generate_chain = generate_prompt | llm | StrOutputParser() | self.__remove_special_tokens
+        generate_chain = generate_prompt | llm | StrOutputParser()
 
         return generate_chain
 
@@ -156,26 +157,6 @@ class AgentPrompt:
         """
         return self.__prompt_using_json(Template.QUERY)
 
-    def __remove_special_tokens(self, text: str) -> str:
-        """Remove Llama 3 special tokens from LLM output.
-
-        Args:
-            text (str): Raw LLM output.
-
-        Returns:
-            str: Cleaned output.
-        """
-        special_tokens = [
-            "<|begin_of_text|>",
-            "<|eot_id|>",
-            "<|start_header_id|>",
-            "<|end_header_id|>",
-            "<|reserved_special_token"
-        ]
-        for token in special_tokens:
-            text = text.replace(token, "")
-        return text.strip()
-
     def __prompt_using_json(self, template: Template = Template.ROUTER) -> str:
         """Generation stage of agent.
 
@@ -184,6 +165,10 @@ class AgentPrompt:
         can be answered using it's knowledge. If query, the agent will reword
         the query in preparation for a web search to add context to its answer.
 
+        The prompt is formatted using the HuggingFace chat template for the
+        loaded model so that the correct special tokens are injected
+        automatically — no post-processing cleanup is required.
+
         Args:
             template (Template, optional): Template enum to get file path.
                 Defaults to Template.ROUTER.
@@ -191,10 +176,17 @@ class AgentPrompt:
         Returns:
             str: String chain of prompt template processed by LLM.
         """
+        # Apply the model's chat template. LangChain {placeholders} are left
+        # intact by Jinja2 and substituted by PromptTemplate at invoke time.
+        formatted_template = self.__read_prompt.get_chat_prompt(
+            self.__model,
+            template,
+        )
+
         router_prompt = PromptTemplate(
-            template=self.__read_prompt.get_contents(template),
+            template=formatted_template,
             input_variables=["question"],
-            )
+        )
 
         # Use temperature 0 for deterministic routing and query transformation
         llm = ChatOpenAI(
@@ -204,8 +196,5 @@ class AgentPrompt:
             temperature=0
         )
 
-        # We use StrOutputParser first, then remove tokens, then extract JSON, then JsonOutputParser
-        chain = (
-            router_prompt | llm | StrOutputParser() | self.__remove_special_tokens | JsonOutputParser()
-        )
+        chain = router_prompt | llm | StrOutputParser() | JsonOutputParser()
         return chain
