@@ -44,10 +44,11 @@ class WorkflowActions:
         context = state.get("context")
         if not context:
             context = "No additional context provided. Answer based on your internal knowledge."
-
-        generation = self.__agent_prompt.get_generate_chain.invoke(
-            {"context": context, "question": question, "history": history}
-        )
+        results = {"context": context, "question": question, "history": history}
+        # tooned = ToonSerializer.dumps({"results": results})
+        # logger.info(f"context >>> {context} \n question >>> {question} \n history >>> {history}")
+        logger.info(f">>> {results}")
+        generation = self.__agent_prompt.get_generate_chain.invoke(results)
         return {"generation": generation}
 
     def transform_query(self, state: dict) -> dict:
@@ -154,10 +155,23 @@ class WorkflowActions:
         output = self.__agent_prompt.get_router_chain.invoke(
             {"question": question}
         )
+        logger.info(f"Chain output: {output!r}")
 
         # Default to doc_search so we always try the document store when uncertain
         choice = output.get('choice', 'doc_search')
         if choice not in ('doc_search', 'web_search', 'generate'):
+            logger.warning(
+                "Router returned unrecognized choice %r; defaulting to doc_search.",
+                choice,
+            )
+            choice = 'doc_search'
+
+        # Force doc_search if model attempts disabled web_search
+        if choice == 'web_search' and not self.__enable_internet_search:
+            logger.info(
+                "Step: Router chose web_search but internet search is disabled; "
+                "falling back to doc_search."
+            )
             choice = 'doc_search'
 
         logger.info(f"Step: Router Decision: {choice}")

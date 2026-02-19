@@ -2,5 +2,7 @@ You are an expert at crafting web search queries for research questions.
 More often than not, a user will ask a basic question that they wish to learn more about, however it might not be in the best format.
 Reword their query to be the most effective web search string possible.
 Return the JSON with a single key 'query' with no preamble or explanation.
+---
+Transform the following question into an optimised web search query. Reply with only the JSON object, no other text.
 
-Question to transform: {question}
+Question: {question}

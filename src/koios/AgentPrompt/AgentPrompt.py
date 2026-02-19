@@ -170,6 +170,12 @@ class AgentPrompt:
         loaded model so that the correct special tokens are injected
         automatically — no post-processing cleanup is required.
 
+        ``JsonOutputParser.get_format_instructions()`` is injected into the
+        prompt as ``{format_instructions}`` so the model receives an explicit
+        schema contract.  Templates that do not contain the placeholder (e.g.
+        the query template) simply omit the variable from ``input_variables``
+        and the partial is not applied.
+
         Args:
             template (Template, optional): Template enum to get file path.
                 Defaults to Template.ROUTER.
@@ -184,10 +190,22 @@ class AgentPrompt:
             template,
         )
 
-        router_prompt = PromptTemplate(
-            template=formatted_template,
-            input_variables=["question"],
-        )
+        parser = JsonOutputParser()
+
+        # Inject format instructions only when the template contains the
+        # {format_instructions} placeholder so the model knows the exact
+        # JSON schema it must produce.
+        if "{format_instructions}" in formatted_template:
+            prompt = PromptTemplate(
+                template=formatted_template,
+                input_variables=["question"],
+                partial_variables={"format_instructions": parser.get_format_instructions()},
+            )
+        else:
+            prompt = PromptTemplate(
+                template=formatted_template,
+                input_variables=["question"],
+            )
 
         # Use temperature 0 for deterministic routing and query transformation
         llm = ChatOpenAI(
@@ -197,5 +215,5 @@ class AgentPrompt:
             temperature=0
         )
 
-        chain = router_prompt | llm | StrOutputParser() | JsonOutputParser()
+        chain = prompt | llm | StrOutputParser() | parser
         return chain

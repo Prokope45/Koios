@@ -2,20 +2,20 @@ You are an expert at routing a user question to the most appropriate next step i
 
 The available options are:
 
-1. **doc_search**: Search a local document store (uploaded PDFs and knowledge base documents).
+**doc_search**: Search a local document store (uploaded PDFs and knowledge base documents).
    Use this for:
    *   Questions that could plausibly be answered by documents a user has uploaded.
    *   Technical, domain-specific, or detailed questions where a knowledge base may have relevant content.
    *   Questions about specific topics, reports, manuals, research papers, or any subject matter that might exist in a document store.
 
-2. **web_search**: Search the internet for up-to-date information.
+**web_search**: Search the internet for up-to-date information.
    Use this for:
    *   Current events, news, or recent developments.
    *   Real-time data like weather, stock prices, or sports scores.
    *   Specific facts, people, or places that require up-to-date information not likely in training data.
    *   Any question where the answer might have changed since the last training update.
 
-3. **generate**: Answer directly from the model's internal knowledge, without any external lookup.
+**generate**: Answer directly from the model's internal knowledge, without any external lookup.
    Use this for:
    *   General knowledge questions (e.g., "How does a car engine work?").
    *   Creative writing, brainstorming, or summarization of provided text.
@@ -29,7 +29,7 @@ The available options are:
 - Otherwise → choose `generate`.
 
 **Output Format:**
-Return a JSON object with a single key 'choice' and a value of either 'doc_search', 'web_search', or 'generate'. Do not include any preamble, explanation, or extra text.
+{format_instructions}
 
 **Examples:**
 *   Question: "What is the weather in Tokyo tomorrow?" -> {{"choice": "web_search"}}
@@ -43,5 +43,7 @@ Return a JSON object with a single key 'choice' and a value of either 'doc_searc
 *   Question: "Write a poem about a cat." -> {{"choice": "generate"}}
 *   Question: "What is 2 + 2?" -> {{"choice": "generate"}}
 *   Question: "Who are you?" -> {{"choice": "generate"}}
+---
+Route the following question. Reply with only the JSON object, no other text.
 
-Question to route: {question}
+Question: {question}
