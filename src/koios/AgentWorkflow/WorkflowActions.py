@@ -8,6 +8,7 @@ version 0.1.0
 from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
 from src.koios.DocumentStore import DocumentStore
 from src.koios.ToonSerializer.ToonSerializer import ToonSerializer
+from src.config import logger
 
 
 class WorkflowActions:
@@ -35,7 +36,7 @@ class WorkflowActions:
             state (dict): New key added to state, generation, containing
                 LLM generation.
         """
-        print("Step: Generating Final Response")
+        logger.info("Step: Generating Final Response")
         question = state["question"]
         history = state.get("history", [])
         
@@ -58,7 +59,7 @@ class WorkflowActions:
         Returns:
             state (dict): Appended search query.
         """
-        print("Step: Optimizing Query for Web Search")
+        logger.info("Step: Optimizing Query for Web Search")
         question = state['question']
         gen_query = self.__agent_prompt.get_query_chain.invoke(
             {"question": question}
@@ -78,7 +79,7 @@ class WorkflowActions:
         # Prefer the optimized search_query produced by transform_query; fall
         # back to the raw question if transform_query was somehow skipped.
         search_query = state.get('search_query') or state['question']
-        print(f'Step: Searching the Web for: "{search_query}"')
+        logger.info(f'Step: Searching the Web for: "{search_query}"')
         search_result = self.__agent_prompt.web_search_with_fallback(
             search_query
         )
@@ -98,7 +99,7 @@ class WorkflowActions:
             state (dict): Appended document results to context.
         """
         question = state['question']
-        print(f'Step: Searching Document Store for: "{question}"')
+        logger.info(f'Step: Searching Document Store for: "{question}"')
         docs = self.__doc_store.search(question)
 
         # Build a list of document dicts and encode as TOON.
@@ -126,13 +127,13 @@ class WorkflowActions:
         context = state.get("context", "")
         if not context or len(context.strip()) == 0:
             if self.__enable_internet_search:
-                print("Step: No relevant documents found. Routing to Web Search.")
+                logger.info("Step: No relevant documents found. Routing to Web Search.")
                 return "web_search"
             else:
-                print("Step: No relevant documents found and Internet Search disabled. Routing to Generation.")
+                logger.info("Step: No relevant documents found and Internet Search disabled. Routing to Generation.")
                 return "generate"
         else:
-            print("Step: Relevant documents found. Routing to Generation.")
+            logger.info("Step: Relevant documents found. Routing to Generation.")
             return "generate"
 
     def route_question(self, state: dict) -> str:
@@ -148,7 +149,7 @@ class WorkflowActions:
         Returns:
             str: Next node to call — either 'doc_search' or 'generate'.
         """
-        print("Step: Routing Query")
+        logger.info("Step: Routing Query")
         question = state['question']
         output = self.__agent_prompt.get_router_chain.invoke(
             {"question": question}
@@ -159,11 +160,11 @@ class WorkflowActions:
         if choice not in ('doc_search', 'web_search', 'generate'):
             choice = 'doc_search'
 
-        print(f"Step: Router Decision: {choice}")
+        logger.info(f"Step: Router Decision: {choice}")
         if choice == "doc_search":
-            print("Step: Routing Query to Document Search")
+            logger.info("Step: Routing Query to Document Search")
         elif choice == "web_search":
-            print("Step: Routing Query to Web Search (via Query Transform)")
+            logger.info("Step: Routing Query to Web Search (via Query Transform)")
         else:
-            print("Step: Routing Query to Generation")
+            logger.info("Step: Routing Query to Generation")
         return choice

@@ -17,6 +17,7 @@ from __future__ import annotations
 from typing import Any
 
 from toon_format import encode, EncodeOptions
+from src.config import logger
 
 
 class ToonSerializer:
@@ -65,7 +66,7 @@ class ToonSerializer:
         try:
             return encode(value, self._options)
         except Exception as exc:  # pragma: no cover
-            print(f"[ToonSerializer] Encoding failed, falling back to str: {exc}")
+            logger.error(f"[ToonSerializer] Encoding failed, falling back to str: {exc}")
             return str(value)
 
     @classmethod

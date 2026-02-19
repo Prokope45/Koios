@@ -18,6 +18,7 @@ from ddgs import DDGS
 from src.koios.enums.Template import Template
 from src.koios.ReadTemplate.ReadTemplate import ReadTemplate
 from src.koios.ToonSerializer.ToonSerializer import ToonSerializer
+from src.config import logger
 
 
 class AgentPrompt:
@@ -80,7 +81,7 @@ class AgentPrompt:
             if time_since_last_search < 1.0:
                 # Wait for the remaining time to respect the 1-second rate limit
                 sleep_time = 1.0 - time_since_last_search
-                print(f"Rate limiting: waiting {sleep_time:.2f}s before DuckDuckGo search...")
+                logger.info(f"Rate limiting: waiting {sleep_time:.2f}s before DuckDuckGo search...")
                 time.sleep(sleep_time)
 
             # Update the last search time
@@ -88,15 +89,15 @@ class AgentPrompt:
 
             with DDGS() as ddgs:
                 results = ddgs.text(query, safesearch="moderate", max_results=10, page=1)
-                print(results)
+                logger.debug("DuckDuckGo results: %s", results)
 
             # Encode the list of {"title", "href", "body"} dicts as TOON.
             toon_context = ToonSerializer.dumps({"results": results})
             return toon_context
 
         except Exception as e:
-            print(f"DuckDuckGo search failed or rate limited: {e}")
-            print("Falling back to Wikipedia...")
+            logger.warning(f"DuckDuckGo search failed or rate limited: {e}")
+            logger.info("Falling back to Wikipedia...")
             try:
                 wiki = WikipediaQueryRun(api_wrapper=WikipediaAPIWrapper())
                 return wiki.invoke(query)
