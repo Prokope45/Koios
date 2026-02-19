@@ -88,12 +88,9 @@ class AgentPrompt:
             AgentPrompt._last_ddg_search_time = time.time()
 
             with DDGS() as ddgs:
-                results = ddgs.text(query, safesearch="moderate", max_results=10, page=1)
+                results = ddgs.text(query, safesearch="moderate", max_results=3, page=1)
                 logger.debug("DuckDuckGo results: %s", results)
-
-            # Encode the list of {"title", "href", "body"} dicts as TOON.
-            toon_context = ToonSerializer.dumps({"results": results})
-            return toon_context
+            return results
 
         except Exception as e:
             logger.warning(f"DuckDuckGo search failed or rate limited: {e}")

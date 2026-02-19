@@ -6,10 +6,10 @@ can be answered directly from the model's internal knowledge.
 
 Path:
   Router
-    ├── doc_search → [if empty & internet enabled] transform_query → web_search → generate
+    ├── doc_search → [if empty & internet enabled] web_search → generate
     │             → [if empty & internet disabled] generate
     │             → [if docs found] generate
-    ├── web_search → transform_query → web_search → generate
+    ├── web_search → web_search → generate
     └── generate
 
 Author: Jared Paubel jpaubel@pm.me
@@ -39,28 +39,26 @@ class AgentWorkflow:
         workflow = StateGraph(GraphState)
         workflow.add_node("web_search", actions.web_search)
         workflow.add_node("doc_search", actions.doc_search)
-        workflow.add_node("transform_query", actions.transform_query)
         workflow.add_node("generate", actions.generate)
 
         workflow.set_conditional_entry_point(
             actions.route_question,
             {
                 "doc_search": "doc_search",
-                "web_search": "transform_query",
+                "web_search": "web_search",
                 "generate": "generate",
             },
         )
-        
+
         workflow.add_conditional_edges(
             "doc_search",
             actions.decide_after_doc_search,
             {
-                "web_search": "transform_query",
+                "web_search": "web_search",
                 "generate": "generate",
             }
         )
-        
-        workflow.add_edge("transform_query", "web_search")
+
         workflow.add_edge("web_search", "generate")
         workflow.add_edge("generate", END)
         self.__local_agent = workflow.compile()

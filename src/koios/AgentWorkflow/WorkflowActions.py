@@ -45,31 +45,16 @@ class WorkflowActions:
         if not context:
             context = "No additional context provided. Answer based on your internal knowledge."
         results = {"context": context, "question": question, "history": history}
-        # tooned = ToonSerializer.dumps({"results": results})
         # logger.info(f"context >>> {context} \n question >>> {question} \n history >>> {history}")
         logger.info(f">>> {results}")
         generation = self.__agent_prompt.get_generate_chain.invoke(results)
         return {"generation": generation}
 
-    def transform_query(self, state: dict) -> dict:
-        """Transform user question to web search.
-
-        Args:
-            state (dict): The current graph state.
-
-        Returns:
-            state (dict): Appended search query.
-        """
-        logger.info("Step: Optimizing Query for Web Search")
-        question = state['question']
-        gen_query = self.__agent_prompt.get_query_chain.invoke(
-            {"question": question}
-        )
-        search_query = gen_query["query"]
-        return {"search_query": search_query}
-
     def web_search(self, state: dict) -> dict:
-        """Web search based on the question.
+        """Optimize the user query and perform a web search.
+
+        The raw question is first transformed into an optimized search query
+        via the query chain, then the search is executed against the web.
 
         Args:
             state (dict): The current graph state.
@@ -77,14 +62,18 @@ class WorkflowActions:
         Returns:
             state (dict): Appended web results to context.
         """
-        # Prefer the optimized search_query produced by transform_query; fall
-        # back to the raw question if transform_query was somehow skipped.
-        search_query = state.get('search_query') or state['question']
+        question = state['question']
+        logger.info("Step: Optimizing Query for Web Search")
+        gen_query = self.__agent_prompt.get_query_chain.invoke(
+            {"question": question}
+        )
+        search_query = gen_query["query"]
         logger.info(f'Step: Searching the Web for: "{search_query}"')
         search_result = self.__agent_prompt.web_search_with_fallback(
             search_query
         )
-        return {"context": search_result}
+        # Encode the list of {"title", "href", "body"} dicts as TOON.
+        return {"context": ToonSerializer.dumps({"results": search_result})}
 
     def doc_search(self, state: dict) -> dict:
         """Search document store based on the question.
@@ -113,8 +102,7 @@ class WorkflowActions:
             }
             for doc in docs
         ]
-        context = ToonSerializer.dumps({"documents": doc_records})
-        return {"context": context}
+        return {"context": ToonSerializer.dumps({"documents": doc_records})}
 
     def decide_after_doc_search(self, state: dict) -> str:
         """Determine whether to proceed to web search or generation.
@@ -178,7 +166,7 @@ class WorkflowActions:
         if choice == "doc_search":
             logger.info("Step: Routing Query to Document Search")
         elif choice == "web_search":
-            logger.info("Step: Routing Query to Web Search (via Query Transform)")
+            logger.info("Step: Routing Query to Web Search")
         else:
             logger.info("Step: Routing Query to Generation")
         return choice
