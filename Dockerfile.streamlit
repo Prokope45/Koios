@@ -1,0 +1,40 @@
+FROM python:3.11-slim
+
+# Set working directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    curl \
+    build-essential \
+    git \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install uv
+RUN pip3 install --no-cache-dir uv
+
+# Copy requirements file
+COPY src/requirements.txt /app/requirements.txt
+
+# Install Python dependencies
+RUN uv pip install --system --no-cache -r requirements.txt
+
+# Copy application code - copy src directory contents to /app/src
+COPY src/ /app/src/
+COPY db/ /app/db/
+
+# Create necessary directories
+RUN mkdir -p /app/temp_uploads /app/db
+
+# Expose Streamlit port
+EXPOSE 8501
+
+# Set Streamlit configuration and Python path
+ENV STREAMLIT_SERVER_PORT=8501
+ENV STREAMLIT_SERVER_ADDRESS=0.0.0.0
+ENV STREAMLIT_SERVER_HEADLESS=true
+ENV STREAMLIT_BROWSER_GATHER_USAGE_STATS=false
+ENV PYTHONPATH=/app
+
+# Run the Streamlit app
+CMD ["python", "-m", "streamlit", "run", "src/app/streamlit_app.py", "--server.port=8501", "--server.address=0.0.0.0"]
