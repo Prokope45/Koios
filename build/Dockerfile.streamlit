@@ -13,11 +13,25 @@ RUN apt-get update && apt-get install -y \
 # Install uv
 RUN pip3 install --no-cache-dir uv
 
-# Copy requirements file
-COPY src/requirements.txt /app/requirements.txt
+# Build argument set by setup.sh via .env.build
+# true  = Windows/Linux with NVIDIA GPU
+# false = macOS or CPU-only
+ARG INSTALL_GPU_PACKAGES=false
 
-# Install Python dependencies
+# Copy requirements files
+COPY src/requirements.txt /app/requirements.txt
+COPY src/requirements-gpu.txt /app/requirements-gpu.txt
+
+# Install base Python dependencies
 RUN uv pip install --system --no-cache -r requirements.txt
+
+# Conditionally install GPU packages
+RUN if [ "$INSTALL_GPU_PACKAGES" = "true" ]; then \
+        echo "Installing GPU packages..." && \
+        uv pip install --system --no-cache -r requirements-gpu.txt; \
+    else \
+        echo "Skipping GPU packages (not a GPU platform)."; \
+    fi
 
 # Copy application code - copy src directory contents to /app/src
 COPY src/ /app/src/
