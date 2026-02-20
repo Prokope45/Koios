@@ -5,7 +5,8 @@ FastAPI server for exposing the Koios RAG model via REST API.
 Author: Jared Paubel jpaubel@pm.me
 version 0.2.0
 """
-from fastapi import FastAPI, HTTPException, Header, Depends
+from datetime import datetime, timezone, timedelta
+from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from typing import List, Optional, Annotated
@@ -78,6 +79,17 @@ class ClearHistoryResponse(BaseModel):
     """Response model for the DELETE /history endpoint."""
     user_id: str
     messages_deleted: int
+
+
+class TokenResponse(BaseModel):
+    """OAuth2-style response model for the POST /token endpoint.
+
+    Attributes:
+        access_token (str): The signed JWT string.
+        token_type (str): Always ``"Bearer"``.
+    """
+    access_token: str
+    token_type: str = "Bearer"
 
 
 def verify_jwt_token(
@@ -189,6 +201,130 @@ def get_current_user(
 async def health_check():
     """Health check endpoint for Docker healthcheck."""
     return {"status": "healthy"}
+
+
+@app.post("/token", response_model=TokenResponse)
+async def get_token(
+    request: Request,
+    x_user_id: Annotated[Optional[str], Header()] = None,
+):
+    """Issue a JWT Bearer token for an authorised user from a trusted IP.
+
+    Two checks are performed before a token is issued:
+
+    1. **IP whitelist** - The client IP is resolved from the
+       ``X-Forwarded-For`` header (first entry, for reverse-proxy deployments)
+       or, when that header is absent, from the direct TCP connection.
+       ``127.0.0.1`` and ``::1`` are always permitted for local development.
+       Additional IPs are configured via ``KOIOS_AUTHORIZED_TOKEN_IPS``.
+
+    2. **User authorisation** - The ``X-User-ID`` header must be present and
+       must appear in the ``KOIOS_APPROVED_USER_IDS`` list.
+
+    The generated token contains the following claims:
+
+    * ``sub`` - the validated user identifier
+    * ``iss`` - issuer string (``KOIOS_JWT_ISSUER``, default ``"koios-api"``)
+    * ``iat`` - UTC timestamp of issuance
+    * ``exp`` - expiry timestamp (only included when ``KOIOS_JWT_EXPIRY_HOURS``
+      is set)
+
+    Args:
+        request: The incoming FastAPI request (used to extract the client IP).
+        x_user_id: Value of the ``X-User-ID`` HTTP header.
+
+    Returns:
+        TokenResponse: OAuth2-style response with ``access_token`` and
+            ``token_type`` fields.
+
+    Raises:
+        HTTPException 401: If the client IP is not authorised, the user ID is
+            missing or not approved, or the JWT secret key is not configured.
+    """
+    # ------------------------------------------------------------------
+    # 1. Resolve client IP (reverse-proxy aware)
+    # ------------------------------------------------------------------
+    forwarded_for = request.headers.get("X-Forwarded-For", "")
+    if forwarded_for:
+        # X-Forwarded-For may contain a comma-separated chain; the leftmost
+        # entry is the original client IP.
+        client_ip = forwarded_for.split(",")[0].strip()
+    else:
+        client_ip = request.client.host if request.client else ""
+
+    authorized_ips = _config.authorized_token_ips
+    if client_ip not in authorized_ips:
+        logger.warning(
+            "Token request denied for IP '%s' (not in authorised list)", client_ip
+        )
+        raise HTTPException(
+            status_code=401,
+            detail=f"IP address '{client_ip}' is not authorised to request a token.",
+        )
+
+    # ------------------------------------------------------------------
+    # 2. Validate user identity
+    # ------------------------------------------------------------------
+    if not x_user_id:
+        raise HTTPException(
+            status_code=401,
+            detail="Missing required header: X-User-ID",
+        )
+
+    approved = _config.approved_user_ids
+    if not approved:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "No approved users configured. "
+                "Set KOIOS_APPROVED_USER_IDS in the environment."
+            ),
+        )
+
+    if x_user_id not in approved:
+        logger.warning(
+            "Token request denied for unknown user '%s' from IP '%s'",
+            x_user_id,
+            client_ip,
+        )
+        raise HTTPException(
+            status_code=401,
+            detail=f"User ID '{x_user_id}' is not authorised.",
+        )
+
+    # ------------------------------------------------------------------
+    # 3. Ensure the secret key is configured before signing
+    # ------------------------------------------------------------------
+    secret_key = _config.jwt_secret_key
+    if not secret_key:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "JWT authentication is not configured. "
+                "Set KOIOS_JWT_SECRET_KEY in the environment."
+            ),
+        )
+
+    # ------------------------------------------------------------------
+    # 4. Build JWT payload and sign
+    # ------------------------------------------------------------------
+    now = datetime.now(tz=timezone.utc)
+    payload: dict = {
+        "sub": x_user_id,
+        "iss": _config.jwt_issuer,
+        "iat": now,
+    }
+
+    expiry_hours = _config.jwt_expiry_hours
+    if expiry_hours is not None:
+        payload["exp"] = now + timedelta(hours=expiry_hours)
+
+    token = jwt.encode(payload, secret_key, algorithm=_config.jwt_algorithm)
+
+    logger.info(
+        "Issued JWT token for user '%s' from IP '%s'", x_user_id, client_ip
+    )
+    return TokenResponse(access_token=token)
 
 
 @app.get("/models")

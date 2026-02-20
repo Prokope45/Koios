@@ -90,3 +90,32 @@ class Config:
             except ValueError:
                 return None
         return None
+
+    @property
+    def jwt_issuer(self) -> str:
+        """Issuer claim (``iss``) embedded in generated JWT tokens.
+
+        Defaults to ``"koios-api"``.  Override via ``KOIOS_JWT_ISSUER``.
+        """
+        return os.getenv("KOIOS_JWT_ISSUER", "koios-api")
+
+    @property
+    def authorized_token_ips(self) -> List[str]:
+        """IP addresses permitted to call the ``/token`` endpoint.
+
+        Always includes ``127.0.0.1`` and ``::1`` so that local development
+        works without any additional configuration.
+
+        Additional addresses are read from the ``KOIOS_AUTHORIZED_TOKEN_IPS``
+        environment variable as a comma-separated string, e.g.::
+
+            KOIOS_AUTHORIZED_TOKEN_IPS=203.0.113.10,198.51.100.42
+
+        Returns:
+            List[str]: Deduplicated list of authorised IP addresses.
+        """
+        # Localhost is always allowed for local development.
+        localhost = {"127.0.0.1", "::1"}
+        raw = os.getenv("KOIOS_AUTHORIZED_TOKEN_IPS", "")
+        configured = {ip.strip() for ip in raw.split(",") if ip.strip()}
+        return list(localhost | configured)
