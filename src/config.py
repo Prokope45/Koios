@@ -1,6 +1,6 @@
 import os
 import logging
-from typing import List
+from typing import List, Optional
 from dotenv import load_dotenv
 from pathlib import Path
 
@@ -54,3 +54,39 @@ class Config:
         """
         raw = os.getenv("KOIOS_APPROVED_USER_IDS", "")
         return [uid.strip() for uid in raw.split(",") if uid.strip()]
+
+    @property
+    def jwt_secret_key(self) -> str:
+        """Secret key used to verify incoming JWT tokens.
+
+        Read from the ``KOIOS_JWT_SECRET_KEY`` environment variable.  This
+        value **must** be set; the API server will reject all authenticated
+        requests if it is absent.
+        """
+        return os.getenv("KOIOS_JWT_SECRET_KEY", "")
+
+    @property
+    def jwt_algorithm(self) -> str:
+        """Algorithm used to decode JWT tokens.
+
+        Defaults to ``HS256``.  Override via ``KOIOS_JWT_ALGORITHM``.
+        """
+        return os.getenv("KOIOS_JWT_ALGORITHM", "HS256")
+
+    @property
+    def jwt_expiry_hours(self) -> Optional[int]:
+        """Optional token expiry window in hours.
+
+        When set, the API server will reject tokens whose ``exp`` claim
+        indicates they have expired.  When absent (or empty), expiry is not
+        enforced.
+
+        Read from ``KOIOS_JWT_EXPIRY_HOURS``.
+        """
+        raw = os.getenv("KOIOS_JWT_EXPIRY_HOURS", "")
+        if raw.strip():
+            try:
+                return int(raw.strip())
+            except ValueError:
+                return None
+        return None

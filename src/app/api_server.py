@@ -6,8 +6,10 @@ Author: Jared Paubel jpaubel@pm.me
 version 0.2.0
 """
 from fastapi import FastAPI, HTTPException, Header, Depends
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from pydantic import BaseModel
 from typing import List, Optional, Annotated
+from jose import JWTError, jwt
 import sys
 import os
 
@@ -31,6 +33,9 @@ _config.setup()
 # Single ChatHistoryStore instance shared across all requests (thread-safe via
 # SQLAlchemy's connection pool and per-session context managers).
 _history_store: ChatHistoryStore = ChatHistoryStore(_config.chat_history_db_path)
+
+# HTTPBearer scheme used to extract the JWT from the Authorization header.
+_bearer_scheme = HTTPBearer()
 
 
 class ChatMessage(BaseModel):
@@ -75,23 +80,84 @@ class ClearHistoryResponse(BaseModel):
     messages_deleted: int
 
 
+def verify_jwt_token(
+    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
+) -> dict:
+    """FastAPI dependency that validates the JWT Bearer token.
+
+    Extracts and decodes the JWT from the ``Authorization: Bearer <token>``
+    header.  The token is verified against ``KOIOS_JWT_SECRET_KEY`` using the
+    algorithm specified by ``KOIOS_JWT_ALGORITHM`` (default: ``HS256``).
+
+    When ``KOIOS_JWT_EXPIRY_HOURS`` is **not** set, the ``exp`` claim is not
+    enforced (tokens are accepted regardless of expiry).  When it is set,
+    expired tokens are rejected.
+
+    Args:
+        credentials: Bearer credentials extracted by FastAPI's HTTPBearer scheme.
+
+    Returns:
+        dict: The decoded JWT payload.
+
+    Raises:
+        HTTPException 401: If the secret key is not configured, the token is
+            malformed, or (when expiry is enforced) the token has expired.
+    """
+    secret_key = _config.jwt_secret_key
+    if not secret_key:
+        raise HTTPException(
+            status_code=401,
+            detail=(
+                "JWT authentication is not configured. "
+                "Set KOIOS_JWT_SECRET_KEY in the environment."
+            ),
+        )
+
+    # When expiry is not configured we instruct python-jose to skip the `exp`
+    # claim check entirely by passing options={"verify_exp": False}.
+    decode_options = {}
+    if _config.jwt_expiry_hours is None:
+        decode_options["verify_exp"] = False
+
+    try:
+        payload = jwt.decode(
+            credentials.credentials,
+            secret_key,
+            algorithms=[_config.jwt_algorithm],
+            options=decode_options,
+        )
+    except JWTError as exc:
+        logger.warning("JWT validation failed: %s", exc)
+        raise HTTPException(
+            status_code=401,
+            detail="Invalid or expired token.",
+        )
+
+    return payload
+
+
 def get_current_user(
     x_user_id: Annotated[Optional[str], Header()] = None,
+    _token_payload: dict = Depends(verify_jwt_token),
 ) -> str:
     """FastAPI dependency that validates the ``X-User-ID`` request header.
 
-    The header value is checked against the comma-separated list of approved
-    identifiers stored in the ``KOIOS_APPROVED_USER_IDS`` environment variable.
+    JWT authentication is performed first via :func:`verify_jwt_token`.  Only
+    after the token is accepted is the ``X-User-ID`` header checked against
+    the comma-separated list of approved identifiers stored in the
+    ``KOIOS_APPROVED_USER_IDS`` environment variable.
 
     Args:
         x_user_id: Value of the ``X-User-ID`` HTTP header.
+        _token_payload: Decoded JWT payload injected by :func:`verify_jwt_token`
+            (not used directly; present to enforce JWT validation first).
 
     Returns:
         str: The validated user identifier.
 
     Raises:
-        HTTPException 401: If the header is missing or the identifier is not
-            in the approved list.
+        HTTPException 401: If the JWT is invalid, the header is missing, or
+            the identifier is not in the approved list.
     """
     if not x_user_id:
         raise HTTPException(
@@ -126,8 +192,20 @@ async def health_check():
 
 
 @app.get("/models")
-async def get_models():
-    """Get available models from Ollama."""
+async def get_models(
+    _token_payload: dict = Depends(verify_jwt_token),
+):
+    """Get available models from Ollama.
+
+    Requires a valid JWT Bearer token (``Authorization: Bearer <token>``).
+    No ``X-User-ID`` header is needed for this endpoint.
+
+    Args:
+        _token_payload: Decoded JWT payload injected by :func:`verify_jwt_token`.
+
+    Returns:
+        dict: A mapping of ``"models"`` to the list of available model names.
+    """
     try:
         models = AgentPrompt.get_available_models()
         return {"models": models}
