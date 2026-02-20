@@ -5,10 +5,31 @@ Workflow actions class containing actions for agent to take.
 Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
 """
+import os
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
+from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
+from langchain.chains import create_history_aware_retriever
+from langchain_openai import ChatOpenAI
+
 from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
 from src.koios.DocumentStore import DocumentStore
 from src.koios.ToonSerializer.ToonSerializer import ToonSerializer
 from src.config import logger
+
+# System prompt that instructs the LLM to reformulate the user's question
+# into a standalone query that can be understood without the chat history.
+_CONTEXTUALIZE_Q_SYSTEM_PROMPT = (
+    "Given a chat history and the latest user question which might reference "
+    "context in the chat history, formulate a standalone question which can be "
+    "understood without the chat history. Do NOT answer the question, just "
+    "reformulate it if needed and otherwise return it as is."
+)
+
+_CONTEXTUALIZE_Q_PROMPT = ChatPromptTemplate.from_messages([
+    ("system", _CONTEXTUALIZE_Q_SYSTEM_PROMPT),
+    MessagesPlaceholder(variable_name="chat_history"),
+    ("human", "{input}"),
+])
 
 
 class WorkflowActions:
@@ -25,6 +46,22 @@ class WorkflowActions:
         self.__agent_prompt = agent_prompt
         self.__enable_internet_search = enable_internet_search
         self.__doc_store = DocumentStore()
+
+        # Build the history-aware retriever once at construction time.
+        # It uses a small, fast LLM to reformulate the user's question into a
+        # standalone query before hitting the vector store.
+        base_url = os.getenv("OPENAI_URL", "http://127.0.0.1:1234")
+        _llm = ChatOpenAI(
+            base_url=f"{base_url}/v1",
+            api_key="lm-studio",
+            model=agent_prompt.model,
+            temperature=0,
+        )
+        self.__history_aware_retriever = create_history_aware_retriever(
+            llm=_llm,
+            retriever=self.__doc_store.get_retriever(),
+            prompt=_CONTEXTUALIZE_Q_PROMPT,
+        )
 
     def generate(self, state: dict) -> dict:
         """Generate answer based on existing knowledge.
@@ -45,8 +82,6 @@ class WorkflowActions:
         if not context:
             context = "No additional context provided. Answer based on your internal knowledge."
         results = {"context": context, "question": question, "history": history}
-        # logger.info(f"context >>> {context} \n question >>> {question} \n history >>> {history}")
-        logger.info(f">>> {results}")
         generation = self.__agent_prompt.get_generate_chain.invoke(results)
         return {"generation": generation}
 
@@ -75,12 +110,39 @@ class WorkflowActions:
         # Encode the list of {"title", "href", "body"} dicts as TOON.
         return {"context": ToonSerializer.dumps({"results": search_result})}
 
-    def doc_search(self, state: dict) -> dict:
-        """Search document store based on the question.
+    @staticmethod
+    def _to_langchain_messages(history: list) -> list[BaseMessage]:
+        """Convert Streamlit-style history dicts to LangChain message objects.
 
-        Retrieved documents are encoded as TOON before being stored in the
-        graph state so that the downstream generate prompt receives a
-        token-efficient representation of the document context.
+        Streamlit stores messages as ``{"role": "user"|"assistant", "content": "..."}``.
+        LangChain's history-aware retriever expects ``HumanMessage`` /
+        ``AIMessage`` instances.
+
+        Args:
+            history (list): List of ``{"role", "content"}`` dicts.
+
+        Returns:
+            list[BaseMessage]: Equivalent LangChain message objects.
+        """
+        messages: list[BaseMessage] = []
+        for msg in history:
+            role = msg.get("role", "")
+            content = msg.get("content", "")
+            if role == "user":
+                messages.append(HumanMessage(content=content))
+            elif role == "assistant":
+                messages.append(AIMessage(content=content))
+        return messages
+
+    def doc_search(self, state: dict) -> dict:
+        """Search document store based on the question using history-aware retrieval.
+
+        The history-aware retriever first reformulates the user's question into
+        a standalone query (using the chat history for context) and then
+        performs similarity search against the vector store.  Retrieved
+        documents are encoded as TOON before being stored in the graph state
+        so that the downstream generate prompt receives a token-efficient
+        representation of the document context.
 
         Args:
             state (dict): The current graph state.
@@ -88,9 +150,18 @@ class WorkflowActions:
         Returns:
             state (dict): Appended document results to context.
         """
-        question = state['question']
+        question = state["question"]
+        raw_history = state.get("history", [])
+        chat_history = self._to_langchain_messages(raw_history)
+
         logger.info(f'Step: Searching Document Store for: "{question}"')
-        docs = self.__doc_store.search(question)
+        if chat_history:
+            logger.info("Step: Reformulating query with chat history context")
+
+        docs = self.__history_aware_retriever.invoke({
+            "input": question,
+            "chat_history": chat_history,
+        })
 
         # Build a list of document dicts and encode as TOON.
         # Each document is represented with its source metadata (if available)

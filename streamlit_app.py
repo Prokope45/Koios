@@ -121,7 +121,10 @@ def run_streamlit() -> None:
         # Add user message to chat history
         streamlit.session_state.messages.append({"role": "user", "content": prompt})
 
-        # Prepare history for the agent (excluding the current prompt)
+        # Prepare history for the agent (all messages except the current prompt,
+        # which was just appended above).  The list of {"role", "content"} dicts
+        # is the shared format understood by WorkflowActions._to_langchain_messages
+        # and the API server's ChatMessage model.
         history = streamlit.session_state.messages[:-1]
 
         # Display assistant response in chat message container

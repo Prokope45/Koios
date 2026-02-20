@@ -12,6 +12,7 @@ from langchain_text_splitters import RecursiveCharacterTextSplitter
 from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_chroma import Chroma
 from langchain_core.documents import Document
+from langchain_core.vectorstores import VectorStoreRetriever
 
 class DocumentStore:
     """Manages PDF loading, embedding, and retrieval."""
@@ -55,6 +56,17 @@ class DocumentStore:
             List[Document]: List of relevant documents.
         """
         return self.__vectorstore.similarity_search(query, k=k)
+
+    def get_retriever(self, k: int = 3) -> VectorStoreRetriever:
+        """Return a LangChain retriever backed by the vector store.
+
+        Args:
+            k (int): Number of documents to retrieve per query.
+
+        Returns:
+            VectorStoreRetriever: Retriever object.
+        """
+        return self.__vectorstore.as_retriever(search_kwargs={"k": k})
 
     def get_all_documents(self) -> List[str]:
         """Get a list of unique source filenames in the store.

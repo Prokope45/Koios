@@ -39,6 +39,15 @@ class AgentPrompt:
         self.__read_prompt = ReadTemplate()
         self.__base_url = os.getenv("OPENAI_URL")
 
+    @property
+    def model(self) -> str:
+        """Getter for the model name.
+
+        Returns:
+            str: The model identifier string.
+        """
+        return self.__model
+
     @staticmethod
     def get_available_models() -> list[str]:
         """Fetch available models from the OpenAI-compatible API.
