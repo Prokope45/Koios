@@ -31,7 +31,7 @@ class Main:
         if len(actual_args) >= 1:
             if actual_args[0] == "app":
                 logger.info("Launching Streamlit app...")
-                subprocess.run([sys.executable, "-m", "streamlit", "run", "streamlit_app.py"])
+                subprocess.run([sys.executable, "-m", "streamlit", "run", "src/app/streamlit_app.py"])
             else:
                 question = actual_args[0]
                 Main.run_agent(question)

@@ -1,7 +1,7 @@
 """streamlit_app.py
 
 Streamlit entry point for the Koios Research Agent web UI.
-This file lives at the project root (/app in Docker) so that Streamlit adds
+This file lives at /app/src/app in Docker so that Streamlit adds
 /app to sys.path, allowing all `from src.koios...` imports to resolve correctly.
 
 Author: Jared Paubel jpaubel@pm.me
@@ -34,6 +34,7 @@ def run_streamlit() -> None:
 
     # Sidebar configuration
     streamlit.sidebar.title("Settings")
+    
 
     # Fetch models from API via AgentPrompt
     model_options = AgentPrompt.get_available_models()
