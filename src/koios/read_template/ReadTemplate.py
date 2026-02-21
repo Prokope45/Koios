@@ -13,7 +13,7 @@ from src.koios.enums.Template import Template
 
 
 class ReadTemplate:
-    """ReadPrompt singleton for reading template files."""
+    """ReadTemplate singleton for reading template files."""
 
     _instance = None
 
@@ -22,6 +22,7 @@ class ReadTemplate:
     _TOKENIZER_MAP: dict[str, str] = {
         r"llama":           "unsloth/Llama-3.2-1B-Instruct",
         r"mistral|mixtral": "mistralai/Mistral-Nemo-Instruct-2407",
+        r"gemma":          "google/gemma-3-1b-it"
     }
 
 
@@ -57,26 +58,26 @@ class ReadTemplate:
     def get_chat_prompt(self, model: str, template: Template) -> str:
         """Return a fully tokenized chat prompt string for the given model.
 
-        Reads the plain-text template file, splits it on the ``---`` separator
+        Reads the plain-text template file, splits it on the `---` separator
         into a system block and an optional user block, then applies the
         HuggingFace chat template for *model* so that the correct
         model-specific special tokens are injected automatically.
 
-        LangChain ``{placeholder}`` variables (e.g. ``{question}``) are left
-        untouched because Jinja2 (used by ``apply_chat_template``) uses
-        ``{{ }}`` syntax and ignores single-brace placeholders. LangChain's
-        ``PromptTemplate`` handles variable substitution at invoke time.
+        LangChain `{placeholder}` variables (e.g. `{question}`) are left
+        untouched because Jinja2 (used by `apply_chat_template`) uses
+        `{{ }}` syntax and ignores single-brace placeholders. LangChain's
+        `PromptTemplate` handles variable substitution at invoke time.
 
-        The ``---`` separator is optional: if absent the entire file is treated
+        The `---` separator is optional: if absent the entire file is treated
         as the system message with no separate user turn.
 
         Args:
-            model (str): The model identifier (e.g. ``"llama3.2"``).
-            template (Template): Template enum selecting the ``.txt`` file.
+            model (str): The model identifier (e.g. `"llama3.2"`).
+            template (Template): Template enum selecting the `.txt` file.
 
         Returns:
             str: Fully formatted prompt string with model-specific tokens,
-                ready to be passed to ``PromptTemplate``.
+                ready to be passed to `PromptTemplate`.
         """
         raw = self.__get_contents(template)
         parts = raw.split("---", 1)

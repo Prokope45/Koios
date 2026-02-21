@@ -12,18 +12,18 @@ The major difference between this and the article demonstration is that this pro
 - **Streamlit UI**: Interactive chat interface with settings and document management.
 
 ## Configuration:
-The following environment variables can be set in `src/.env`:
+The following environment variables can be set in `./.env`:
 - `OPENAI_URL`: URL for the OpenAI-compatible API (e.g., LM Studio).
-- `KOIOS_ENABLE_INTERNET_SEARCH`: Set to `True` to enable internet search by default.
+- `ENABLE_INTERNET_SEARCH`: Set to `True` to enable internet search by default.
 
 ## Getting Started:
 
 ### Option 1: Docker (Recommended)
 The easiest way to run Koios is using Docker, which includes Ollama with llama3.2, FastAPI, and Streamlit:
 
-```bash
+``bash
 # Configure environment
-cp src/.env.example src/.env
+cp ./.env.example ./.env
 
 # Build and start all services
 docker compose up -d
@@ -32,7 +32,7 @@ docker compose up -d
 # - Streamlit UI: http://localhost:8501
 # - FastAPI: http://localhost:8000/docs
 # - Ollama: http://localhost:11434
-```
+``
 
 See [DOCKER-README.md](DOCKER-README.md) for detailed Docker setup instructions.
 
@@ -42,7 +42,7 @@ It is assumed that you are running a local model using the developer server on L
 1. Create virtual environment `python3 -m venv venv`
 2. Activate virtual environment `source venv/bin/activate`
 3. Install dependencies `pip install -r src/requirements.txt`
-4. Configure environment `cp src/.env.example src/.env`
+4. Configure environment `cp ./.env.example ./.env`
 5. Run the program either by:
     - Running the webapp `python3 -m src app`
     - Directly query the model `python3 -m src "<research question to ask>"`

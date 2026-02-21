@@ -11,9 +11,9 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever
 from langchain_openai import ChatOpenAI
 
-from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
-from src.koios.DocumentStore import DocumentStore
-from src.koios.ToonSerializer.ToonSerializer import ToonSerializer
+from src.koios.agent.prompt import Prompt
+from src.koios.data_store.DocumentStore import DocumentStore
+from src.koios.toon_serializer.ToonSerializer import ToonSerializer
 from src.config import logger
 
 # System prompt that instructs the LLM to reformulate the user's question
@@ -35,11 +35,11 @@ _CONTEXTUALIZE_Q_PROMPT = ChatPromptTemplate.from_messages([
 class WorkflowActions:
     """Provide workflow actions for agent to take."""
 
-    def __init__(self, agent_prompt: AgentPrompt, enable_internet_search: bool = False):
+    def __init__(self, agent_prompt: Prompt, enable_internet_search: bool = False):
         """Construct WorkflowActions object.
 
         Args:
-            agent_prompt (AgentPrompt): AgentPrompt object to use for getting
+            agent_prompt (Prompt): Prompt object to use for getting
                 chains.
             enable_internet_search (bool): Whether to allow web search.
         """
@@ -114,12 +114,12 @@ class WorkflowActions:
     def _to_langchain_messages(history: list) -> list[BaseMessage]:
         """Convert Streamlit-style history dicts to LangChain message objects.
 
-        Streamlit stores messages as ``{"role": "user"|"assistant", "content": "..."}``.
-        LangChain's history-aware retriever expects ``HumanMessage`` /
-        ``AIMessage`` instances.
+        Streamlit stores messages as `{"role": "user"|"assistant", "content": "..."}`.
+        LangChain's history-aware retriever expects `HumanMessage` /
+        `AIMessage` instances.
 
         Args:
-            history (list): List of ``{"role", "content"}`` dicts.
+            history (list): List of `{"role", "content"}` dicts.
 
         Returns:
             list[BaseMessage]: Equivalent LangChain message objects.

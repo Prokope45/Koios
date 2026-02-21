@@ -17,12 +17,12 @@ version 0.1.0
 """
 from langgraph.graph import END, StateGraph
 
-from src.koios.GraphState.GraphState import GraphState
-from src.koios.AgentWorkflow.WorkflowActions import WorkflowActions
-from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
+from src.koios.agent.graph_state import GraphState
+from src.koios.agent.workflow_actions import WorkflowActions
+from src.koios.agent.prompt import Prompt
 
 
-class AgentWorkflow:
+class Workflow:
     """AgentWorkflow class that contains the workflow for the agent."""
 
     def __init__(self, model: str, temperature: float, enable_internet_search: bool = False) -> None:
@@ -33,7 +33,7 @@ class AgentWorkflow:
             temperature (float): Model temperature to use when generating.
             enable_internet_search (bool): Whether to allow web search.
         """
-        agent_prompt: AgentPrompt = AgentPrompt(model, temperature)
+        agent_prompt: Prompt = Prompt(model, temperature)
         actions = WorkflowActions(agent_prompt, enable_internet_search)
 
         workflow = StateGraph(GraphState)
