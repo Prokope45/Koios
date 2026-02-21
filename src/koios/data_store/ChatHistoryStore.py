@@ -2,8 +2,8 @@
 
 SQLite-backed chat history store for per-user conversation persistence.
 
-Each user's messages are stored in a single ``chat_messages`` table keyed by
-``user_id``.  A sliding-window cap of ``MAX_MESSAGES_PER_USER`` (100) is
+Each user's messages are stored in a single `chat_messages` table keyed by
+`user_id`.  A sliding-window cap of `config.max_messages_per_user` (500) is
 enforced so that the table never grows unbounded.
 
 Author: Jared Paubel jpaubel@pm.me
@@ -28,23 +28,20 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-from src.config import logger
-
-# Maximum number of messages retained per user (sliding window).
-MAX_MESSAGES_PER_USER: int = 100
+from src.config import config, logger
 
 
-class _Base(DeclarativeBase):
+class ChatBase(DeclarativeBase):
     pass
 
 
-class ChatMessageRecord(_Base):
+class ChatMessageRecord(ChatBase):
     """ORM model for a single chat message belonging to a user.
 
     Attributes:
         id (int): Auto-incrementing primary key.
-        user_id (str): Opaque user identifier supplied via ``X-User-ID`` header.
-        role (str): Either ``"user"`` or ``"assistant"``.
+        user_id (str): Opaque user identifier supplied via `X-User-ID` header.
+        role (str): Either `"user"` or `"assistant"`.
         content (str): The message text.
         created_at (datetime): UTC timestamp of insertion.
     """
@@ -62,7 +59,7 @@ class ChatMessageRecord(_Base):
     )
 
     def to_dict(self) -> dict:
-        """Return a plain ``{"role", "content"}`` dict for use with the agent."""
+        """Return a plain `{"role", "content"}` dict for use with the agent."""
         return {"role": self.role, "content": self.content}
 
 
@@ -71,13 +68,14 @@ class ChatHistoryStore:
 
     Usage::
 
+
         store = ChatHistoryStore()
         store.add_message("alice", "user", "Hello!")
         history = store.get_history("alice")  # [{"role": "user", "content": "Hello!"}]
 
     Args:
         db_path (str): Filesystem path to the SQLite database file.
-            Defaults to ``db/chat_history.sqlite``.
+            Defaults to `db/chat_history.sqlite`.
     """
 
     def __init__(self, db_path: str = "db/chat_history.sqlite") -> None:
@@ -89,32 +87,28 @@ class ChatHistoryStore:
             connect_args={"check_same_thread": False},
             echo=False,
         )
-        _Base.metadata.create_all(engine)
+        ChatBase.metadata.create_all(engine)
         self._Session: sessionmaker[Session] = sessionmaker(bind=engine)
         logger.info("ChatHistoryStore initialised at %s", db_path)
-
-    # ------------------------------------------------------------------
-    # Public API
-    # ------------------------------------------------------------------
 
     def get_history(self, user_id: str) -> List[dict]:
         """Return the stored chat history for *user_id* as a list of dicts.
 
         Messages are returned in chronological order (oldest first) and are
-        capped at :data:`MAX_MESSAGES_PER_USER` entries.
+        capped at :data:`config.max_messages_per_user` entries.
 
         Args:
             user_id (str): The user identifier.
 
         Returns:
-            list[dict]: List of ``{"role": ..., "content": ...}`` dicts.
+            list[dict]: List of `{"role": ..., "content": ...}` dicts.
         """
         with self._Session() as session:
             stmt = (
                 select(ChatMessageRecord)
                 .where(ChatMessageRecord.user_id == user_id)
                 .order_by(ChatMessageRecord.created_at.asc())
-                .limit(MAX_MESSAGES_PER_USER)
+                .limit(config.max_messages_per_user)
             )
             records = session.scalars(stmt).all()
             return [r.to_dict() for r in records]
@@ -122,13 +116,13 @@ class ChatHistoryStore:
     def add_message(self, user_id: str, role: str, content: str) -> None:
         """Append a single message to *user_id*'s history.
 
-        If the user already has :data:`MAX_MESSAGES_PER_USER` messages stored,
+        If the user already has :data:`config.max_messages_per_user` messages stored,
         the oldest message is deleted before the new one is inserted (sliding
         window).
 
         Args:
             user_id (str): The user identifier.
-            role (str): ``"user"`` or ``"assistant"``.
+            role (str): `"user"` or `"assistant"`.
             content (str): The message text.
         """
         with self._Session() as session:
@@ -137,9 +131,9 @@ class ChatHistoryStore:
                 select(func.count()).where(ChatMessageRecord.user_id == user_id)
             ) or 0
 
-            if count >= MAX_MESSAGES_PER_USER:
+            if count >= config.max_messages_per_user:
                 # Delete the oldest message(s) to make room.
-                overflow = count - MAX_MESSAGES_PER_USER + 1
+                overflow = count - config.max_messages_per_user + 1
                 oldest_ids_stmt = (
                     select(ChatMessageRecord.id)
                     .where(ChatMessageRecord.user_id == user_id)
@@ -168,7 +162,7 @@ class ChatHistoryStore:
 
         Args:
             user_id (str): The user identifier.
-            messages (list[dict]): List of ``{"role", "content"}`` dicts.
+            messages (list[dict]): List of `{"role", "content"}` dicts.
         """
         for msg in messages:
             self.add_message(user_id, msg["role"], msg["content"])

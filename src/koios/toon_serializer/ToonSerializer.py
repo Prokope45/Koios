@@ -23,7 +23,7 @@ from src.config import logger
 class ToonSerializer:
     """Encode Python objects to TOON format for token-efficient LLM context.
 
-    Wraps the official ``toon_format`` package and provides a stable,
+    Wraps the official `toon_format` package and provides a stable,
     project-level API with graceful fallback to plain-text on failure.
 
     Usage::
@@ -42,7 +42,7 @@ class ToonSerializer:
         Args:
             indent (int): Number of spaces per indentation level. Default 2.
             delimiter (str): Field delimiter for tabular/primitive arrays.
-                Allowed values: ``","`` (default), ``"\\t"``, ``"|"``.
+                Allowed values: `","` (default), `"\\t"`, `"|"`.
         """
         self._options: EncodeOptions = {
             "indent": indent,
@@ -52,7 +52,7 @@ class ToonSerializer:
     def encode(self, value: Any) -> str:
         """Encode *value* to a TOON-formatted string.
 
-        Falls back to ``str(value)`` if encoding fails so that the calling
+        Falls back to `str(value)` if encoding fails so that the calling
         workflow is never interrupted by a serialisation error.
 
         Args:

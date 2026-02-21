@@ -17,7 +17,7 @@ class Template(Enum):
     def __init__(self, value: str):
         super().__init__(value)
         src_dir_path = Path(__file__).parent.parent
-        self.__target_dir_path = src_dir_path.joinpath("ReadTemplate")
+        self.__target_dir_path = src_dir_path.joinpath("read_template")
 
     @property
     def path(self) -> str:

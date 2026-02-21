@@ -28,15 +28,15 @@ services:
         # ollama pull llama3.2:3b-instruct-fp16
         # ollama pull mistral-nemo:12b-instruct-2407-q8_0
         wait
-    # deploy:
-    #   resources:
-    #     reservations:
-    #       devices:
-    #         - driver: nvidia
-    #           count: all          # or count: 1
-    #           capabilities: [gpu]
-    # environment:
-    #   - OLLAMA_NUM_GPU=99
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all          # or count: 1
+              capabilities: [gpu]
+    environment:
+      - OLLAMA_NUM_GPU=99
 
   # FastAPI service for RAG model
   api:
@@ -47,10 +47,10 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - src/.env
+      - ./.env
     environment:
       - OPENAI_URL=http://ollama:11434
-      - KOIOS_ENABLE_INTERNET_SEARCH=${KOIOS_ENABLE_INTERNET_SEARCH:-False}
+      - ENABLE_INTERNET_SEARCH=${ENABLE_INTERNET_SEARCH:-False}
     volumes:
       - ./src:/app/src
       - ./db:/app/db
@@ -77,10 +77,10 @@ services:
     ports:
       - "8501:8501"
     env_file:
-      - src/.env
+      - ./.env
     environment:
       - OPENAI_URL=http://ollama:11434
-      - KOIOS_ENABLE_INTERNET_SEARCH=${KOIOS_ENABLE_INTERNET_SEARCH:-False}
+      - ENABLE_INTERNET_SEARCH=${ENABLE_INTERNET_SEARCH:-False}
     volumes:
       - ./src:/app/src
       - ./db:/app/db
