@@ -21,7 +21,7 @@ The following environment variables can be set in `./.env`:
 ### Option 1: Docker (Recommended)
 The easiest way to run Koios is using Docker, which includes Ollama with llama3.2, FastAPI, and Streamlit:
 
-``bash
+`bash
 # Configure environment
 cp ./.env.example ./.env
 
@@ -32,7 +32,7 @@ docker compose up -d
 # - Streamlit UI: http://localhost:8501
 # - FastAPI: http://localhost:8000/docs
 # - Ollama: http://localhost:11434
-``
+`
 
 See [DOCKER-README.md](DOCKER-README.md) for detailed Docker setup instructions.
 

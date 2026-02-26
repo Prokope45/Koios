@@ -67,3 +67,53 @@ class ClearHistoryResponse(BaseModel):
     """Response model for the DELETE /history endpoint."""
     user_id: str
     messages_deleted: int
+
+
+class TokenResponse(BaseModel):
+    """OAuth2-style response model for the POST /token endpoint.
+
+    Attributes:
+        access_token (str): The signed JWT string.
+        token_type (str): Always `"Bearer"`.
+    """
+    access_token: str
+    token_type: str = "Bearer"
+
+
+class DetailItem(BaseModel):
+    """A single detail item with a key, value, and description.
+
+    Attributes:
+        key (str): The name of the detail/metric.
+        value: The numeric or string value.
+        description (str): Explanation of what the detail means.
+    """
+    key: str
+    value: float
+    description: str
+
+
+class AnalyzeRequest(BaseModel):
+    """Request model for the /analyze endpoint."""
+    prompt: str = Field(..., description="General prompt for the AI.")
+    details: List[DetailItem] = Field(
+        ...,
+        description="Variable list of details/metrics with descriptions."
+    )
+    model: Optional[str] = Field(
+        None,
+        description="Model to use for analysis."
+    )
+    temperature: Optional[float] = Field(
+        0.5,
+        description="Injected randomness into model."
+    )
+
+
+class AnalyzeResponse(BaseModel):
+    """Response model for the /analyze endpoint."""
+    prompt: str
+    user_id: str
+    generation: str
+    model: str
+    details: List[DetailItem]
