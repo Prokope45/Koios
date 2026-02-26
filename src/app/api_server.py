@@ -16,6 +16,7 @@ sys.path.insert(0, "/app")
 
 from src.koios.agent import Workflow, Prompt
 from src.koios.data_store.ChatHistoryStore import ChatHistoryStore
+from src.koios.toon_serializer.ToonSerializer import ToonSerializer
 import src.app.models as models
 from src.config import config, logger
 
@@ -479,5 +480,66 @@ async def clear_history(user_id: str = Depends(get_current_user)):
     try:
         deleted = _history_store.clear_history(user_id)
         return models.ClearHistoryResponse(user_id=user_id, messages_deleted=deleted)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# MARK:- Process Analysis
+@app.post("/analyze", response_model=models.AnalyzeResponse)
+async def process_analysis(
+    request: models.AnalyzeRequest,
+    user_id: str = Depends(get_current_user),
+):
+    """Process an analysis query with provided details.
+
+    This endpoint takes a prompt and a list of metrics/details, serializes
+    the details into TOON format, and injects them into the model's context.
+
+    Args:
+        request: AnalyzeRequest containing prompt, details, and model settings.
+        user_id: Validated user identifier injected by :func:`get_current_user`.
+
+    Returns:
+        AnalyzeResponse with the generated answer.
+    """
+    try:
+        # Use provided model or default to first available
+        if request.model and request.model != "":
+            selected_model = request.model
+        else:
+            model_options = Prompt.get_available_models()
+            selected_model = model_options[0] if model_options else "llama3.2"
+
+        # Serialize details to TOON format for token efficiency
+        details_list = [d.model_dump() for d in request.details]
+        toon_context = ToonSerializer.dumps({"details": details_list})
+
+        # Create workflow and process query.
+        # We disable internet search for this specialized analysis endpoint.
+        workflow = Workflow(
+            selected_model,
+            request.temperature or 0.5,
+            enable_internet_search=False
+        )
+
+        output = workflow.local_agent.invoke({
+            "question": request.prompt,
+            "history": [],  # Stateless analysis
+            "context": toon_context,
+            "generation": "",
+            "search_query": "",
+        })
+
+        generation = output.get("generation", "No generation produced.")
+
+        return models.AnalyzeResponse(
+            prompt=request.prompt,
+            user_id=user_id,
+            generation=generation,
+            model=selected_model,
+            details=request.details,
+        )
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
