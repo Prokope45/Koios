@@ -130,3 +130,13 @@ class Config:
         raw = os.getenv("AUTHORIZED_TOKEN_IPS", "")
         configured = {ip.strip() for ip in raw.split(",") if ip.strip()}
         return list(localhost | configured)
+
+    @property
+    def enable_encryption(self) -> bool:
+        """Toggle for payload encryption. Defaults to True."""
+        return os.getenv("ENABLE_ENCRYPTION", "True").lower() == "true"
+
+    @property
+    def encryption_key(self) -> str:
+        """Hex-encoded 32-byte key for AES-256-GCM encryption."""
+        return os.getenv("ENCRYPTION_KEY", "")

@@ -8,7 +8,8 @@ version 0.2.0
 from datetime import datetime, timezone, timedelta
 from fastapi import FastAPI, HTTPException, Header, Depends, Request
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from typing import Optional, Annotated
+from typing import Optional, Annotated, Union
+from pydantic import BaseModel
 from jose import JWTError, jwt
 import sys
 
@@ -19,6 +20,19 @@ from src.koios.data_store.ChatHistoryStore import ChatHistoryStore
 from src.koios.toon_serializer.ToonSerializer import ToonSerializer
 import src.app.models as models
 from src.config import config, logger
+from src.app.encryption import Encryption
+
+
+def _wrap_response(data: Union[BaseModel, dict]):
+    """Helper to encrypt response data if encryption is enabled."""
+    if config.enable_encryption:
+        if isinstance(data, BaseModel):
+            data_dict = data.model_dump()
+        else:
+            data_dict = data
+        encrypted = Encryption.encrypt(data_dict)
+        return models.EncryptedResponse(encrypted_data=encrypted)
+    return data
 
 app = FastAPI(title="Koios RAG API", version="0.2.0")
 
@@ -265,7 +279,7 @@ async def get_token(
 
 
 # MARK:- Get Models
-@app.get("/models")
+@app.get("/models", response_model=Union[dict, models.EncryptedResponse])
 async def get_models(
     _token_payload: dict = Depends(verify_jwt_token),
 ):
@@ -281,16 +295,16 @@ async def get_models(
         dict: A mapping of `"models"` to the list of available model names.
     """
     try:
-        models = Prompt.get_available_models()
-        return {"models": models}
+        model_list = Prompt.get_available_models()
+        return _wrap_response({"models": model_list})
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # MARK:- Process Query
-@app.post("/query", response_model=models.QueryResponse)
+@app.post("/query", response_model=Union[models.QueryResponse, models.EncryptedResponse])
 async def process_query(
-    request: models.QueryRequest,
+    request: Union[models.QueryRequest, models.EncryptedRequest],
     user_id: str = Depends(get_current_user),
 ):
     """Process a RAG query via POST request.
@@ -305,27 +319,44 @@ async def process_query(
     `APPROVED_USER_IDS` are accepted.
 
     Args:
-        request: QueryRequest containing query, user_id, model, temperature, and
-            search settings.
+        request: QueryRequest or EncryptedRequest containing query details.
         user_id: Validated user identifier injected by :func:`get_current_user`.
 
     Returns:
-        QueryResponse with the generated answer and the full updated history.
+        QueryResponse or EncryptedResponse with the generated answer.
     """
     try:
-        # config.setup()
+        # 1. Handle decryption if enabled
+        if config.enable_encryption:
+            if not isinstance(request, models.EncryptedRequest):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Encrypted request required when ENABLE_ENCRYPTION is True."
+                )
+            try:
+                decrypted = Encryption.decrypt(request.encrypted_data)
+                actual_request = models.QueryRequest(**decrypted)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Decryption failed: {e}")
+        else:
+            if not isinstance(request, models.QueryRequest):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Plain request required when ENABLE_ENCRYPTION is False."
+                )
+            actual_request = request
 
         # Use provided model or default to first available
-        if request.model and request.model != "":
-            selected_model = request.model
+        if actual_request.model and actual_request.model != "":
+            selected_model = actual_request.model
         else:
             model_options = Prompt.get_available_models()
             selected_model = model_options[0] if model_options else "llama3.2"
 
         # Use provided internet search setting or config default
         enable_search = (
-            request.enable_internet_search
-            if request.enable_internet_search is not None
+            actual_request.enable_internet_search
+            if actual_request.enable_internet_search is not None
             else config.enable_internet_search
         )
 
@@ -338,14 +369,11 @@ async def process_query(
         )
 
         # Create workflow and process query.
-        # The history-aware retriever inside WorkflowActions.doc_search()
-        # will reformulate the question using the full chat history so that
-        # only the most contextually relevant documents are retrieved.
         workflow = Workflow(
-            selected_model, request.temperature, enable_internet_search=enable_search
+            selected_model, actual_request.temperature, enable_internet_search=enable_search
         )
         output = workflow.local_agent.invoke({
-            "question": request.query,
+            "question": actual_request.query,
             "history": history_dicts,
             "context": "",
             "generation": "",
@@ -356,23 +384,24 @@ async def process_query(
 
         # Persist the new turn to the database.
         _history_store.add_messages(user_id, [
-            {"role": "user", "content": request.query},
+            {"role": "user", "content": actual_request.query},
             {"role": "assistant", "content": generation},
         ])
 
         # Return the full updated history so clients can display it.
         updated_history = history_dicts + [
-            {"role": "user", "content": request.query},
+            {"role": "user", "content": actual_request.query},
             {"role": "assistant", "content": generation},
         ]
 
-        return models.QueryResponse(
-            query=request.query,
+        response_obj = models.QueryResponse(
+            query=actual_request.query,
             user_id=user_id,
             generation=generation,
             model=selected_model,
             history=[models.ChatMessage(**m) for m in updated_history],
         )
+        return _wrap_response(response_obj)
     except HTTPException:
         raise
     except Exception as e:
@@ -380,7 +409,7 @@ async def process_query(
 
 
 # MARK:- Process Query (Stateless)
-@app.get("/query")
+@app.get("/query", response_model=Union[models.QueryResponse, models.EncryptedResponse])
 async def process_query_stateless(
     query: str,
     model: Optional[str] = None,
@@ -404,8 +433,6 @@ async def process_query_stateless(
         QueryResponse with the generated answer and an empty history list.
     """
     try:
-        # config.setup()
-
         if model:
             selected_model = model
         else:
@@ -427,13 +454,14 @@ async def process_query_stateless(
 
         generation = output.get("generation", "No generation produced.")
 
-        return models.QueryResponse(
+        response_obj = models.QueryResponse(
             query=query,
             user_id=user_id,
             generation=generation,
             model=selected_model,
             history=[],
         )
+        return _wrap_response(response_obj)
     except HTTPException:
         raise
     except Exception as e:
@@ -441,7 +469,7 @@ async def process_query_stateless(
 
 
 # MARK:- Get History
-@app.get("/history", response_model=models.HistoryResponse)
+@app.get("/history", response_model=Union[models.HistoryResponse, models.EncryptedResponse])
 async def get_history(user_id: str = Depends(get_current_user)):
     """Retrieve the authenticated user's full chat history.
 
@@ -455,17 +483,18 @@ async def get_history(user_id: str = Depends(get_current_user)):
     """
     try:
         history_dicts = _history_store.get_history(user_id)
-        return models.HistoryResponse(
+        response_obj = models.HistoryResponse(
             user_id=user_id,
             message_count=len(history_dicts),
             history=[models.ChatMessage(**m) for m in history_dicts],
         )
+        return _wrap_response(response_obj)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # MARK:- Delete History
-@app.delete("/history", response_model=models.ClearHistoryResponse)
+@app.delete("/history", response_model=Union[models.ClearHistoryResponse, models.EncryptedResponse])
 async def clear_history(user_id: str = Depends(get_current_user)):
     """Delete all stored chat history for the authenticated user.
 
@@ -479,15 +508,16 @@ async def clear_history(user_id: str = Depends(get_current_user)):
     """
     try:
         deleted = _history_store.clear_history(user_id)
-        return models.ClearHistoryResponse(user_id=user_id, messages_deleted=deleted)
+        response_obj = models.ClearHistoryResponse(user_id=user_id, messages_deleted=deleted)
+        return _wrap_response(response_obj)
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
 # MARK:- Process Analysis
-@app.post("/analyze", response_model=models.AnalyzeResponse)
+@app.post("/analyze", response_model=Union[models.AnalyzeResponse, models.EncryptedResponse])
 async def process_analysis(
-    request: models.AnalyzeRequest,
+    request: Union[models.AnalyzeRequest, models.EncryptedRequest],
     user_id: str = Depends(get_current_user),
 ):
     """Process an analysis query with provided details.
@@ -496,34 +526,54 @@ async def process_analysis(
     the details into TOON format, and injects them into the model's context.
 
     Args:
-        request: AnalyzeRequest containing prompt, details, and model settings.
+        request: AnalyzeRequest or EncryptedRequest containing prompt and details.
         user_id: Validated user identifier injected by :func:`get_current_user`.
 
     Returns:
-        AnalyzeResponse with the generated answer.
+        AnalyzeResponse or EncryptedResponse with the generated answer.
     """
     try:
+        # Handle decryption if enabled
+        if config.enable_encryption:
+            if not isinstance(request, models.EncryptedRequest):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Encrypted request required when ENABLE_ENCRYPTION is True."
+                )
+            try:
+                decrypted = Encryption.decrypt(request.encrypted_data)
+                actual_request = models.AnalyzeRequest(**decrypted)
+            except Exception as e:
+                raise HTTPException(status_code=400, detail=f"Decryption failed: {e}")
+        else:
+            if not isinstance(request, models.AnalyzeRequest):
+                raise HTTPException(
+                    status_code=400,
+                    detail="Plain request required when ENABLE_ENCRYPTION is False."
+                )
+            actual_request = request
+
         # Use provided model or default to first available
-        if request.model and request.model != "":
-            selected_model = request.model
+        if actual_request.model and actual_request.model != "":
+            selected_model = actual_request.model
         else:
             model_options = Prompt.get_available_models()
             selected_model = model_options[0] if model_options else "llama3.2"
 
         # Serialize details to TOON format for token efficiency
-        details_list = [d.model_dump() for d in request.details]
+        details_list = [d.model_dump() for d in actual_request.details]
         toon_context = ToonSerializer.dumps({"details": details_list})
 
         # Create workflow and process query.
         # We disable internet search for this specialized analysis endpoint.
         workflow = Workflow(
             selected_model,
-            request.temperature or 0.5,
+            actual_request.temperature or 0.5,
             enable_internet_search=False
         )
 
         output = workflow.local_agent.invoke({
-            "question": request.prompt,
+            "question": actual_request.prompt,
             "history": [],  # Stateless analysis
             "context": toon_context,
             "generation": "",
@@ -532,13 +582,14 @@ async def process_analysis(
 
         generation = output.get("generation", "No generation produced.")
 
-        return models.AnalyzeResponse(
-            prompt=request.prompt,
+        response_obj = models.AnalyzeResponse(
+            prompt=actual_request.prompt,
             user_id=user_id,
             generation=generation,
             model=selected_model,
-            details=request.details,
+            details=actual_request.details,
         )
+        return _wrap_response(response_obj)
     except HTTPException:
         raise
     except Exception as e:

@@ -80,6 +80,16 @@ class TokenResponse(BaseModel):
     token_type: str = "Bearer"
 
 
+class EncryptedRequest(BaseModel):
+    """Wrapper for encrypted request body."""
+    encrypted_data: str
+
+
+class EncryptedResponse(BaseModel):
+    """Wrapper for encrypted response body."""
+    encrypted_data: str
+
+
 class DetailItem(BaseModel):
     """A single detail item with a key, value, and description.
 
