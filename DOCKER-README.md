@@ -25,13 +25,13 @@ All containers can communicate with each other using service names (e.g., `http:
 
 Copy the example environment file and configure it:
 
-``bash
+`bash
 cp ./.env.example ./.env
-``
+`
 
 Edit `./.env` to set your preferences:
 
-``bash
+`bash
 # For Docker deployment, use the ollama service name
 OPENAI_URL=http://ollama:11434
 
@@ -40,27 +40,27 @@ ENABLE_INTERNET_SEARCH=False
 
 # Optional: Add your Hugging Face token
 # HF_TOKEN=your_huggingface_token_here
-``
+`
 
 ### 2. Build the Containers
 
-``bash
+`bash
 docker compose build
-``
+`
 
 This will build the FastAPI and Streamlit containers. The Ollama container uses the official pre-built image.
 
 ### 3. Start the Services
 
-``bash
+`bash
 docker compose up -d
-``
+`
 
 The first startup will take several minutes as Ollama downloads the llama3.2 model (~2GB).
 
 ### 4. Monitor the Logs
 
-``bash
+`bash
 # View all logs
 docker compose logs -f
 
@@ -68,7 +68,7 @@ docker compose logs -f
 docker compose logs -f ollama
 docker compose logs -f api
 docker compose logs -f streamlit
-``
+`
 
 ### 5. Access the Services
 
@@ -82,25 +82,25 @@ Once all services are healthy:
 
 ### Health Check
 
-``bash
+`bash
 curl http://localhost:8000/health
-``
+`
 
 ### Get Available Models
 
-``bash
+`bash
 curl http://localhost:8000/models
-``
+`
 
 ### Query via GET
 
-``bash
+`bash
 curl "http://localhost:8000/query?query=What%20is%20machine%20learning?&name=John"
-``
+`
 
 ### Query via POST
 
-``bash
+`bash
 curl -X POST http://localhost:8000/query \
   -H "Content-Type: application/json" \
   -d '{
@@ -110,18 +110,18 @@ curl -X POST http://localhost:8000/query \
     "temperature": 0.7,
     "enable_internet_search": false
   }'
-``
+`
 
 ### Example Response
 
-``json
+`json
 {
   "query": "What is machine learning?",
   "name": "John",
   "generation": "Machine learning is a subset of artificial intelligence...",
   "model": "llama3.2"
 }
-``
+`
 
 ## Using the Streamlit UI
 
@@ -138,36 +138,36 @@ curl -X POST http://localhost:8000/query \
 
 ### Stop the Services
 
-``bash
+`bash
 docker compose down
-``
+`
 
 ### Stop and Remove Volumes (including model data)
 
-``bash
+`bash
 docker compose down -v
-``
+`
 
 ### Restart a Specific Service
 
-``bash
+`bash
 docker compose restart api
 docker compose restart streamlit
 docker compose restart ollama
-``
+`
 
 ### View Container Status
 
-``bash
+`bash
 docker compose ps
-``
+`
 
 ### Rebuild After Code Changes
 
-``bash
+`bash
 docker compose build api streamlit
 docker compose up -d
-``
+`
 
 ## Troubleshooting
 
@@ -175,13 +175,13 @@ docker compose up -d
 
 If the Ollama container fails to pull the model:
 
-``bash
+`bash
 # Check Ollama logs
 docker compose logs ollama
 
 # Manually pull the model
 docker compose exec ollama ollama pull llama3.2
-``
+`
 
 ### API Connection Issues
 
@@ -195,10 +195,10 @@ If the API can't connect to Ollama:
 
 If ports 8000, 8501, or 11434 are already in use, modify `docker-compose.yml`:
 
-``yaml
+`yaml
 ports:
   - "8080:8000"  # Change host port (left side)
-``
+`
 
 ### Out of Memory
 
@@ -210,7 +210,7 @@ If containers crash due to memory:
 
 ### Rebuilding from Scratch
 
-``bash
+`bash
 # Stop and remove everything
 docker compose down -v
 
@@ -220,7 +220,7 @@ docker rmi koios-api koios-streamlit
 # Rebuild
 docker compose build --no-cache
 docker compose up -d
-``
+`
 
 ## Development Mode
 
@@ -244,7 +244,7 @@ For production deployment:
 
 ## Network Architecture
 
-``
+`
 ┌─────────────────────────────────────────┐
 │         koios_net (bridge)              │
 │                                         │
@@ -257,7 +257,7 @@ For production deployment:
         │             │             │
     localhost     localhost     localhost
       :11434        :8000         :8501
-``
+`
 
 ## Volume Persistence
 
