@@ -43,7 +43,7 @@ services:
     ports:
       - "8000:8000"
     env_file:
-      - ./.env
+      - ./src/.env
     environment:
       - OPENAI_URL=http://ollama:11434
       - ENABLE_INTERNET_SEARCH=${ENABLE_INTERNET_SEARCH:-False}
@@ -75,7 +75,7 @@ services:
     ports:
       - "8501:8501"
     env_file:
-      - ./.env
+      - ./src/.env
     environment:
       - OPENAI_URL=http://ollama:11434
       - ENABLE_INTERNET_SEARCH=${ENABLE_INTERNET_SEARCH:-False}

@@ -26,7 +26,7 @@ class Config:
 
     def setup(self) -> None:
         """Load environment variables from .env file."""
-        path: str = Path("./.env")
+        path: str = Path("./src/.env")
         load_dotenv(path)
 
     @property
