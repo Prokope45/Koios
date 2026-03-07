@@ -5,9 +5,8 @@ Main program to run agent workflow.
 Author: Jared Paubel jpaubel@pm.me
 version 0.1.0
 """
-from src.koios.AgentWorkflow.AgentWorkflow import AgentWorkflow
-from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
-from src.config import Config, logger
+from src.koios.agent import Workflow, Prompt
+from src.config import config, logger
 
 
 class Main:
@@ -23,8 +22,7 @@ class Main:
         import subprocess
         import sys
 
-        config = Config()
-        config.setup()
+        # config.setup()
 
         actual_args = args[1:]
 
@@ -48,18 +46,17 @@ class Main:
         """
         logger.info(f"Running agent with question: {question}")
 
-        config = Config()
-        config.setup()
+        # config.setup()
 
         # Fetch models and pick the first one as default
-        model_options = AgentPrompt.get_available_models()
+        model_options = Prompt.get_available_models()
         selected_model = model_options[0] if model_options else "llama3.2"
         temperature = 0.5
 
         logger.info(f"Using model: {selected_model} (temp: {temperature})")
         logger.info(f"Internet search enabled: {config.enable_internet_search}")
 
-        workflow = AgentWorkflow(selected_model, temperature, enable_internet_search=config.enable_internet_search)
+        workflow = Workflow(selected_model, temperature, enable_internet_search=config.enable_internet_search)
         output = workflow.local_agent.invoke({"question": question})
 
         generation = output.get("generation", "No generation produced.")

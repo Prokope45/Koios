@@ -11,9 +11,9 @@ from langchain_core.prompts import ChatPromptTemplate, MessagesPlaceholder
 from langchain.chains import create_history_aware_retriever
 from langchain_openai import ChatOpenAI
 
-from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
-from src.koios.DocumentStore import DocumentStore
-from src.koios.ToonSerializer.ToonSerializer import ToonSerializer
+from src.koios.agent.prompt import Prompt
+from src.koios.data_store.DocumentStore import DocumentStore
+from src.koios.toon_serializer.ToonSerializer import ToonSerializer
 from src.config import logger
 
 # System prompt that instructs the LLM to reformulate the user's question
@@ -35,11 +35,11 @@ _CONTEXTUALIZE_Q_PROMPT = ChatPromptTemplate.from_messages([
 class WorkflowActions:
     """Provide workflow actions for agent to take."""
 
-    def __init__(self, agent_prompt: AgentPrompt, enable_internet_search: bool = False):
+    def __init__(self, agent_prompt: Prompt, enable_internet_search: bool = False):
         """Construct WorkflowActions object.
 
         Args:
-            agent_prompt (AgentPrompt): AgentPrompt object to use for getting
+            agent_prompt (Prompt): Prompt object to use for getting
                 chains.
             enable_internet_search (bool): Whether to allow web search.
         """
@@ -76,11 +76,24 @@ class WorkflowActions:
         logger.info("Step: Generating Final Response")
         question = state["question"]
         history = state.get("history", [])
-        
-        # Ensure context is not None or empty if we skipped web search
-        context = state.get("context")
-        if not context:
+
+        # Merge retrieved context with any custom payload injected via the API.
+        retrieved_context = state.get("context") or ""
+        custom_context = state.get("custom_context") or ""
+
+        if retrieved_context and custom_context:
+            logger.info(f'  Sub-Step: Using document/websearch context and custom context')
+            context = f"{custom_context}\n\n{retrieved_context}"
+        elif custom_context:
+            logger.info(f'  Sub-Step: Using only custom context')
+            context = custom_context
+        elif retrieved_context:
+            logger.info(f'  Sub-Step: Using only document/websearch context')
+            context = retrieved_context
+        else:
+            logger.info(f'  Sub-Step: No additional context providing. Using internal knowledge')
             context = "No additional context provided. Answer based on your internal knowledge."
+
         results = {"context": context, "question": question, "history": history}
         generation = self.__agent_prompt.get_generate_chain.invoke(results)
         return {"generation": generation}
@@ -114,12 +127,12 @@ class WorkflowActions:
     def _to_langchain_messages(history: list) -> list[BaseMessage]:
         """Convert Streamlit-style history dicts to LangChain message objects.
 
-        Streamlit stores messages as ``{"role": "user"|"assistant", "content": "..."}``.
-        LangChain's history-aware retriever expects ``HumanMessage`` /
-        ``AIMessage`` instances.
+        Streamlit stores messages as `{"role": "user"|"assistant", "content": "..."}`.
+        LangChain's history-aware retriever expects `HumanMessage` /
+        `AIMessage` instances.
 
         Args:
-            history (list): List of ``{"role", "content"}`` dicts.
+            history (list): List of `{"role", "content"}` dicts.
 
         Returns:
             list[BaseMessage]: Equivalent LangChain message objects.

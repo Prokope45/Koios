@@ -5,6 +5,7 @@
 venv
 .venv
 output.md
+__pycache__/
 db/
 temp_uploads/
 

@@ -26,22 +26,22 @@ All containers can communicate with each other using service names (e.g., `http:
 
 Copy the example environment file and configure it:
 
-```bash
-cp src/.env.example src/.env
-```
+`bash
+cp ./.env.example ./.env
+`
 
-Edit `src/.env` to set your preferences:
+Edit `./.env` to set your preferences:
 
-```bash
+`bash
 # For Docker deployment, use the ollama service name
 OPENAI_URL=http://ollama:11434
 
 # Enable/disable internet search
-KOIOS_ENABLE_INTERNET_SEARCH=False
+ENABLE_INTERNET_SEARCH=False
 
 # Optional: Add your Hugging Face token
 # HF_TOKEN=your_huggingface_token_here
-```
+`
 
 ### 2. Build the Containers
 
@@ -67,7 +67,7 @@ The first startup will take several minutes as Ollama downloads the llama3.2 mod
 
 ### 4. Monitor the Logs
 
-```bash
+`bash
 # View all logs
 make logs
 
@@ -138,25 +138,25 @@ Docker Compose automatically merges `docker-compose.override.yml` with `docker-c
 
 ### Health Check
 
-```bash
+`bash
 curl http://localhost:8000/health
-```
+`
 
 ### Get Available Models
 
-```bash
+`bash
 curl http://localhost:8000/models
-```
+`
 
 ### Query via GET
 
-```bash
+`bash
 curl "http://localhost:8000/query?query=What%20is%20machine%20learning?&name=John"
-```
+`
 
 ### Query via POST
 
-```bash
+`bash
 curl -X POST http://localhost:8000/query \
   -H "Content-Type: application/json" \
   -d '{
@@ -166,18 +166,18 @@ curl -X POST http://localhost:8000/query \
     "temperature": 0.7,
     "enable_internet_search": false
   }'
-```
+`
 
 ### Example Response
 
-```json
+`json
 {
   "query": "What is machine learning?",
   "name": "John",
   "generation": "Machine learning is a subset of artificial intelligence...",
   "model": "llama3.2"
 }
-```
+`
 
 ## Using the Streamlit UI
 
@@ -236,7 +236,7 @@ make reset
 
 If the Ollama container fails to pull the model:
 
-```bash
+`bash
 # Check Ollama logs
 make logs-ollama
 
@@ -266,10 +266,10 @@ Then re-run `make build`.
 
 If ports 8000, 8501, or 11434 are already in use, modify `docker-compose.yml`:
 
-```yaml
+`yaml
 ports:
   - "8080:8000"  # Change host port (left side)
-```
+`
 
 ### Out of Memory
 
@@ -309,7 +309,7 @@ For production deployment:
 
 ## Network Architecture
 
-```
+`
 ┌─────────────────────────────────────────┐
 │         koios_net (bridge)              │
 │                                         │
@@ -322,7 +322,7 @@ For production deployment:
         │             │             │
     localhost     localhost     localhost
       :11434        :8000         :8501
-```
+`
 
 ## Volume Persistence
 

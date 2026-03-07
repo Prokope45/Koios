@@ -9,21 +9,20 @@ version 0.1.0
 """
 import os
 import streamlit
-from src.koios.AgentWorkflow.AgentWorkflow import AgentWorkflow
-from src.koios.AgentPrompt.AgentPrompt import AgentPrompt
-from src.config import Config
+from src.koios.agent import Workflow, Prompt
+from src.config import config
 
 
 @streamlit.cache_resource
 def get_document_store():
-    from src.koios.DocumentStore import DocumentStore
+    # Lazy load document store
+    from src.koios.data_store.DocumentStore import DocumentStore
     return DocumentStore()
 
 
 def run_streamlit() -> None:
     """Run the agent workflow and display the output in a Streamlit app."""
-    config = Config()
-    config.setup()
+    # config.setup()
 
     streamlit.set_page_config(page_title="Koios Research Agent", layout="wide")
     streamlit.title("Koios Research Agent")
@@ -36,8 +35,8 @@ def run_streamlit() -> None:
     streamlit.sidebar.title("Settings")
     
 
-    # Fetch models from API via AgentPrompt
-    model_options = AgentPrompt.get_available_models()
+    # Fetch models from API via Prompt
+    model_options = Prompt.get_available_models()
 
     selected_model = streamlit.sidebar.selectbox(
         "Choose the LLM Model",
@@ -106,7 +105,7 @@ def run_streamlit() -> None:
         streamlit.session_state.messages = []
         streamlit.rerun()
 
-    workflow = AgentWorkflow(selected_model, temperature, enable_internet_search=enable_internet_search)
+    workflow = Workflow(selected_model, temperature, enable_internet_search=enable_internet_search)
 
     # Display chat messages from history on app rerun
     for message in streamlit.session_state.messages:

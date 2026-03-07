@@ -16,12 +16,11 @@ from langchain_community.utilities import WikipediaAPIWrapper
 from ddgs import DDGS
 
 from src.koios.enums.Template import Template
-from src.koios.ReadTemplate.ReadTemplate import ReadTemplate
-from src.koios.ToonSerializer.ToonSerializer import ToonSerializer
+from src.koios.read_template.ReadTemplate import ReadTemplate
 from src.config import logger
 
 
-class AgentPrompt:
+class Prompt:
     """Create prompt chains for invoking agent workflow actions."""
 
     # Class-level variable to track last DuckDuckGo search time
@@ -85,7 +84,7 @@ class AgentPrompt:
         try:
             # Enforce rate limit: DuckDuckGo allows 1 request per second
             current_time = time.time()
-            time_since_last_search = current_time - AgentPrompt._last_ddg_search_time
+            time_since_last_search = current_time - Prompt._last_ddg_search_time
 
             if time_since_last_search < 1.0:
                 # Wait for the remaining time to respect the 1-second rate limit
@@ -94,7 +93,7 @@ class AgentPrompt:
                 time.sleep(sleep_time)
 
             # Update the last search time
-            AgentPrompt._last_ddg_search_time = time.time()
+            Prompt._last_ddg_search_time = time.time()
 
             with DDGS() as ddgs:
                 results = ddgs.text(query, safesearch="moderate", max_results=3, page=1)
@@ -176,10 +175,10 @@ class AgentPrompt:
         loaded model so that the correct special tokens are injected
         automatically — no post-processing cleanup is required.
 
-        ``JsonOutputParser.get_format_instructions()`` is injected into the
-        prompt as ``{format_instructions}`` so the model receives an explicit
+        `JsonOutputParser.get_format_instructions()` is injected into the
+        prompt as `{format_instructions}` so the model receives an explicit
         schema contract.  Templates that do not contain the placeholder (e.g.
-        the query template) simply omit the variable from ``input_variables``
+        the query template) simply omit the variable from `input_variables`
         and the partial is not applied.
 
         Args:
