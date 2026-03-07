@@ -594,3 +594,24 @@ async def process_analysis(
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+# MARK:- Dev Tools
+if config.environment == "development":
+    @app.post("/encrypt")
+    async def dev_encrypt(request: models.EncryptRequest):
+        """Encrypt JSON data for testing purposes. Available in development only."""
+        try:
+            encrypted = Encryption.encrypt(request.data)
+            return {"encrypted_data": encrypted}
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/decrypt")
+    async def dev_decrypt(request: models.EncryptedRequest):
+        """Decrypt data for testing purposes. Available in development only."""
+        try:
+            decrypted = Encryption.decrypt(request.encrypted_data)
+            return decrypted
+        except Exception as e:
+            raise HTTPException(status_code=400, detail=f"Decryption failed: {e}")

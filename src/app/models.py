@@ -7,6 +7,7 @@ version 0.1.0
 """
 from pydantic import BaseModel, Field
 from typing import Optional, List
+from src.config import config
 
 
 class ChatMessage(BaseModel):
@@ -33,18 +34,29 @@ class QueryRequest(BaseModel):
     temperature: Optional[float] = Field(0.5, description="Injected randomness into model")
     enable_internet_search: Optional[bool] = Field(False, description="Allow model to query the internet for context.")
 
-    model_config = {
-        "json_schema_extra": {
-            "examples": [
-                {
-                    "query": "What is machine learning?",
-                    "model": None,
-                    "temperature": 0.7,
-                    "enable_internet_search": False
-                }
-            ]
+    if not config.enable_encryption:
+        model_config = {
+            "json_schema_extra": {
+                "examples": [
+                    {
+                        "query": "What is machine learning?",
+                        "model": None,
+                        "temperature": 0.7,
+                        "enable_internet_search": False
+                    }
+                ]
+            }
         }
-    }
+    else:
+        model_config = {
+            "json_schema_extra": {
+                "examples": [
+                    {
+                        "encrypted_data": "_some_encrypted_data"
+                    }
+                ]
+            }
+        }
 
 
 class QueryResponse(BaseModel):
@@ -90,6 +102,26 @@ class EncryptedResponse(BaseModel):
     encrypted_data: str
 
 
+class EncryptRequest(BaseModel):
+    """Dictionary data to encrypt."""
+    data: dict
+
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "data": {
+                        "query": "What is machine learning?",
+                        "model": None,
+                        "temperature": 0.7,
+                        "enable_internet_search": False
+                    }
+                }
+            ]
+        }
+    }
+
+
 class DetailItem(BaseModel):
     """A single detail item with a key, value, and description.
 
@@ -119,6 +151,29 @@ class AnalyzeRequest(BaseModel):
         description="Injected randomness into model."
     )
 
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "prompt": "Based on these metrics, provide recommendations for improvement.",
+                    "details": [
+                        {
+                            "key": "motivation",
+                            "value": 0.7,
+                            "description": "A measure of the user's drive and enthusiasm for completing tasks"
+                        },
+                        {
+                            "key": "task_progress",
+                            "value": 0.22,
+                            "description": "Percentage of tasks completed in the current sprint"
+                        }
+                    ],
+                    "temperature": 0.5
+                }
+            ]
+        }
+    }
+
 
 class AnalyzeResponse(BaseModel):
     """Response model for the /analyze endpoint."""
@@ -127,3 +182,4 @@ class AnalyzeResponse(BaseModel):
     generation: str
     model: str
     details: List[DetailItem]
+

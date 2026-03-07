@@ -140,3 +140,16 @@ class Config:
     def encryption_key(self) -> str:
         """Hex-encoded 32-byte key for AES-256-GCM encryption."""
         return os.getenv("ENCRYPTION_KEY", "")
+
+    @property
+    def environment(self) -> str:
+        """Current deployment environment.
+
+        Read from the `APP_ENV` environment variable.  Defaults to
+        `"production"` when not set.  This is used to enable
+        development-only features.
+
+        Returns:
+            str: Environment name (e.g. "development", "production", "staging").
+        """
+        return os.getenv("APP_ENV", "production")
