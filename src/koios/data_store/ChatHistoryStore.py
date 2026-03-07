@@ -66,9 +66,7 @@ class ChatMessageRecord(ChatBase):
 class ChatHistoryStore:
     """Persistent, per-user chat history backed by SQLite.
 
-    Usage::
-
-
+    Usage:
         store = ChatHistoryStore()
         store.add_message("alice", "user", "Hello!")
         history = store.get_history("alice")  # [{"role": "user", "content": "Hello!"}]

@@ -93,7 +93,7 @@ class EncryptedResponse(BaseModel):
 
 class EncryptRequest(BaseModel):
     """Dictionary data to encrypt."""
-    data: dict
+    data: dict | list | set | str | int
 
     model_config = {
         "json_schema_extra": {
@@ -105,6 +105,9 @@ class EncryptRequest(BaseModel):
                         "temperature": 0.7,
                         "enable_internet_search": False
                     }
+                },
+                {
+                    "data": "plaintext_user_id"
                 }
             ]
         }

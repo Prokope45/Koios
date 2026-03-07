@@ -6,11 +6,10 @@ Author: Jared Paubel jpaubel@pm.me
 version 0.2.0
 """
 from datetime import datetime, timezone, timedelta
-from fastapi import FastAPI, HTTPException, Header, Depends, Request
-from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
-from typing import Optional, Annotated, Union
+from fastapi import FastAPI, Header, HTTPException, Depends, Request
+from typing import Optional, Union, Annotated
 from pydantic import BaseModel
-from jose import JWTError, jwt
+from jose import jwt
 import sys
 
 sys.path.insert(0, "/app")
@@ -18,7 +17,8 @@ sys.path.insert(0, "/app")
 from src.koios.agent import Workflow, Prompt
 from src.koios.data_store.ChatHistoryStore import ChatHistoryStore
 from src.koios.toon_serializer.ToonSerializer import ToonSerializer
-import src.app.models as models
+import src.app.api.models as models
+from src.app.api.auth import Auth
 from src.config import config, logger
 from src.app.encryption import Encryption
 
@@ -36,122 +36,9 @@ def _wrap_response(data: Union[BaseModel, dict]):
 
 app = FastAPI(title="Koios RAG API", version="0.2.0")
 
-# MARK:- Shared singletons
-# Config is loaded once at startup so that environment variables are available
-# to the ChatHistoryStore before any request arrives.
-# config.setup()
-
 # Single ChatHistoryStore instance shared across all requests (thread-safe via
 # SQLAlchemy's connection pool and per-session context managers).
 _history_store: ChatHistoryStore = ChatHistoryStore(config.chat_history_db_path)
-
-# HTTPBearer scheme used to extract the JWT from the Authorization header.
-_bearer_scheme = HTTPBearer()
-
-
-def verify_jwt_token(
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme),
-) -> dict:
-    """FastAPI dependency that validates the JWT Bearer token.
-
-    Extracts and decodes the JWT from the `Authorization: Bearer <token>`
-    header.  The token is verified against `JWT_SECRET_KEY` using the
-    algorithm specified by `JWT_ALGORITHM` (default: `HS256`).
-
-    When `JWT_EXPIRY_SECONDS` is **not** set, the `exp` claim is not
-    enforced (tokens are accepted regardless of expiry).  When it is set,
-    expired tokens are rejected.
-
-    Args:
-        credentials: Bearer credentials extracted by FastAPI's HTTPBearer scheme.
-
-    Returns:
-        dict: The decoded JWT payload.
-
-    Raises:
-        HTTPException 401: If the secret key is not configured, the token is
-            malformed, or (when expiry is enforced) the token has expired.
-    """
-    secret_key = config.jwt_secret_key
-    if not secret_key:
-        raise HTTPException(
-            status_code=401,
-            detail=(
-                "JWT authentication is not configured. "
-                "Set JWT_SECRET_KEY in the environment."
-            ),
-        )
-
-    # When expiry is not configured we instruct python-jose to skip the `exp`
-    # claim check entirely by passing options={"verify_exp": False}.
-    decode_options = {}
-    if config.jwt_expiry_seconds is None:
-        decode_options["verify_exp"] = False
-
-    try:
-        payload = jwt.decode(
-            credentials.credentials,
-            secret_key,
-            algorithms=[config.jwt_algorithm],
-            options=decode_options,
-        )
-    except JWTError as exc:
-        logger.warning("JWT validation failed: %s", exc)
-        raise HTTPException(
-            status_code=401,
-            detail="Invalid or expired token.",
-        )
-
-    return payload
-
-
-def get_current_user(
-    x_user_id: Annotated[Optional[str], Header()] = None,
-    _token_payload: dict = Depends(verify_jwt_token),
-) -> str:
-    """FastAPI dependency that validates the `X-User-ID` request header.
-
-    JWT authentication is performed first via :func:`verify_jwt_token`.  Only
-    after the token is accepted is the `X-User-ID` header checked against
-    the comma-separated list of approved identifiers stored in the
-    `APPROVED_USER_IDS` environment variable.
-
-    Args:
-        x_user_id: Value of the `X-User-ID` HTTP header.
-        _token_payload: Decoded JWT payload injected by :func:`verify_jwt_token`
-            (not used directly; present to enforce JWT validation first).
-
-    Returns:
-        str: The validated user identifier.
-
-    Raises:
-        HTTPException 401: If the JWT is invalid, the header is missing, or
-            the identifier is not in the approved list.
-    """
-    if not x_user_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing required header: X-User-ID",
-        )
-
-    approved = config.approved_user_ids
-    if not approved:
-        raise HTTPException(
-            status_code=401,
-            detail=(
-                "No approved users configured. "
-                "Set APPROVED_USER_IDS in the environment."
-            ),
-        )
-
-    if x_user_id not in approved:
-        logger.warning("Rejected request from unknown user '%s'", x_user_id)
-        raise HTTPException(
-            status_code=401,
-            detail=f"User ID '{x_user_id}' is not authorised.",
-        )
-
-    return x_user_id
 
 
 # MARK:- HealthCheck
@@ -209,59 +96,19 @@ async def get_token(
     else:
         client_ip = request.client.host if request.client else ""
 
-    authorized_ips = config.authorized_token_ips
-    if client_ip not in authorized_ips:
-        logger.warning(
-            "Token request denied for IP '%s' (not in authorised list)", client_ip
-        )
-        raise HTTPException(
-            status_code=401,
-            detail=f"IP address '{client_ip}' is not authorised to request a token.",
-        )
+    Auth.check_ip_authorization(client_ip)
 
-    # 2. Validate user identity
-    if not x_user_id:
-        raise HTTPException(
-            status_code=401,
-            detail="Missing required header: X-User-ID",
-        )
-
-    approved = config.approved_user_ids
-    if not approved:
-        raise HTTPException(
-            status_code=401,
-            detail=(
-                "No approved users configured. "
-                "Set APPROVED_USER_IDS in the environment."
-            ),
-        )
-
-    if x_user_id not in approved:
-        logger.warning(
-            "Token request denied for unknown user '%s' from IP '%s'",
-            x_user_id,
-            client_ip,
-        )
-        raise HTTPException(
-            status_code=401,
-            detail=f"User ID '{x_user_id}' is not authorised.",
-        )
+    # 2. Validate user identity (already validated in Auth.get_current_user)
+    user_id: str = x_user_id
+    Auth.get_current_user(user_id)
 
     # 3. Ensure the secret key is configured before signing
-    secret_key = config.jwt_secret_key
-    if not secret_key:
-        raise HTTPException(
-            status_code=401,
-            detail=(
-                "JWT authentication is not configured. "
-                "Set JWT_SECRET_KEY in the environment."
-            ),
-        )
+    secret_key: str = Auth.check_jwt_is_configured()
 
     # 4. Build JWT payload and sign
     now = datetime.now(tz=timezone.utc)
     payload: dict = {
-        "sub": x_user_id,
+        "sub": user_id,
         "iss": config.jwt_issuer,
         "iat": now,
     }
@@ -273,7 +120,7 @@ async def get_token(
     token = jwt.encode(payload, secret_key, algorithm=config.jwt_algorithm)
 
     logger.info(
-        "Issued JWT token for user '%s' from IP '%s'", x_user_id, client_ip
+        "Issued JWT token for user '%s' from IP '%s'", user_id, client_ip
     )
     return models.TokenResponse(access_token=token)
 
@@ -281,7 +128,7 @@ async def get_token(
 # MARK:- Get Models
 @app.get("/models", response_model=Union[dict, models.EncryptedResponse])
 async def get_models(
-    _token_payload: dict = Depends(verify_jwt_token),
+    _token_payload: dict = Depends(Auth.verify_jwt_token),
 ):
     """Get available models from Ollama.
 
@@ -289,7 +136,7 @@ async def get_models(
     No `X-User-ID` header is needed for this endpoint.
 
     Args:
-        _token_payload: Decoded JWT payload injected by :func:`verify_jwt_token`.
+        _token_payload: Decoded JWT payload injected by :func:`Auth.verify_jwt_token`.
 
     Returns:
         dict: A mapping of `"models"` to the list of available model names.
@@ -305,7 +152,7 @@ async def get_models(
 @app.post("/query", response_model=Union[models.QueryResponse, models.EncryptedResponse])
 async def process_query(
     request: Union[models.QueryRequest, models.EncryptedRequest],
-    user_id: str = Depends(get_current_user),
+    user_id: str = Depends(Auth.get_current_user),
 ):
     """Process a RAG query via POST request.
 
@@ -320,7 +167,7 @@ async def process_query(
 
     Args:
         request: QueryRequest or EncryptedRequest containing query details.
-        user_id: Validated user identifier injected by :func:`get_current_user`.
+        user_id: Validated user identifier injected by :func:`Auth.get_current_user`.
 
     Returns:
         QueryResponse or EncryptedResponse with the generated answer.
@@ -413,7 +260,7 @@ async def process_query(
 async def process_query_stateless(
     query: str,
     model: Optional[str] = None,
-    user_id: str = Depends(get_current_user),
+    user_id: str = Depends(Auth.get_current_user),
 ):
     """Process a RAG query via GET request (stateless, no history).
 
@@ -427,7 +274,7 @@ async def process_query_stateless(
         query: The research question.
         user_id: User ID.
         model: Model to use (optional, defaults to first available).
-        user_id: Validated user identifier injected by :func:`get_current_user`.
+        user_id: Validated user identifier injected by :func:`Auth.get_current_user`.
 
     Returns:
         QueryResponse with the generated answer and an empty history list.
@@ -470,13 +317,13 @@ async def process_query_stateless(
 
 # MARK:- Get History
 @app.get("/history", response_model=Union[models.HistoryResponse, models.EncryptedResponse])
-async def get_history(user_id: str = Depends(get_current_user)):
+async def get_history(user_id: str = Depends(Auth.get_current_user)):
     """Retrieve the authenticated user's full chat history.
 
     The `X-User-ID` header is **required**.
 
     Args:
-        user_id: Validated user identifier injected by :func:`get_current_user`.
+        user_id: Validated user identifier injected by :func:`Auth.get_current_user`.
 
     Returns:
         HistoryResponse containing the user's stored messages.
@@ -495,13 +342,13 @@ async def get_history(user_id: str = Depends(get_current_user)):
 
 # MARK:- Delete History
 @app.delete("/history", response_model=Union[models.ClearHistoryResponse, models.EncryptedResponse])
-async def clear_history(user_id: str = Depends(get_current_user)):
+async def clear_history(user_id: str = Depends(Auth.get_current_user)):
     """Delete all stored chat history for the authenticated user.
 
     The `X-User-ID` header is **required**.
 
     Args:
-        user_id: Validated user identifier injected by :func:`get_current_user`.
+        user_id: Validated user identifier injected by :func:`Auth.get_current_user`.
 
     Returns:
         ClearHistoryResponse with the number of messages deleted.
@@ -518,7 +365,7 @@ async def clear_history(user_id: str = Depends(get_current_user)):
 @app.post("/analyze", response_model=Union[models.AnalyzeResponse, models.EncryptedResponse])
 async def process_analysis(
     request: Union[models.AnalyzeRequest, models.EncryptedRequest],
-    user_id: str = Depends(get_current_user),
+    user_id: str = Depends(Auth.get_current_user),
 ):
     """Process an analysis query with provided details.
 
@@ -527,7 +374,7 @@ async def process_analysis(
 
     Args:
         request: AnalyzeRequest or EncryptedRequest containing prompt and details.
-        user_id: Validated user identifier injected by :func:`get_current_user`.
+        user_id: Validated user identifier injected by :func:`Auth.get_current_user`.
 
     Returns:
         AnalyzeResponse or EncryptedResponse with the generated answer.
