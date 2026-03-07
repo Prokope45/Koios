@@ -64,37 +64,37 @@ services:
       start_period: 40s
     restart: unless-stopped
 
-  # Streamlit service for web UI
-  streamlit:
-    build:
-      context: .
-      dockerfile: build/Dockerfile.streamlit
-      args:
-        INSTALL_GPU_PACKAGES: ${INSTALL_GPU_PACKAGES:-false}
-    container_name: koios-streamlit
-    ports:
-      - "8501:8501"
-    env_file:
-      - ./src/.env
-    environment:
-      - OPENAI_URL=http://ollama:11434
-      - ENABLE_INTERNET_SEARCH=${ENABLE_INTERNET_SEARCH:-False}
-    volumes:
-      - ./src:/app/src
-      - ./db:/app/db
-      - ./temp_uploads:/app/temp_uploads
-    networks:
-      - koios_net
-    depends_on:
-      ollama:
-        condition: service_healthy
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-      start_period: 40s
-    restart: unless-stopped
+  # Streamlit service for web UI (uncomment to run)
+  # streamlit:
+  #   build:
+  #     context: .
+  #     dockerfile: build/Dockerfile.streamlit
+  #     args:
+  #       INSTALL_GPU_PACKAGES: ${INSTALL_GPU_PACKAGES:-false}
+  #   container_name: koios-streamlit
+  #   ports:
+  #     - "8501:8501"
+  #   env_file:
+  #     - ./src/.env
+  #   environment:
+  #     - OPENAI_URL=http://ollama:11434
+  #     - ENABLE_INTERNET_SEARCH=${ENABLE_INTERNET_SEARCH:-False}
+  #   volumes:
+  #     - ./src:/app/src
+  #     - ./db:/app/db
+  #     - ./temp_uploads:/app/temp_uploads
+  #   networks:
+  #     - koios_net
+  #   depends_on:
+  #     ollama:
+  #       condition: service_healthy
+  #   healthcheck:
+  #     test: ["CMD", "curl", "-f", "http://localhost:8501/_stcore/health"]
+  #     interval: 30s
+  #     timeout: 10s
+  #     retries: 3
+  #     start_period: 40s
+  #   restart: unless-stopped
 
 networks:
   koios_net:
