@@ -52,8 +52,18 @@ class Encryption:
         return base64.b64encode(combined).decode('utf-8')
 
     @classmethod
-    def decrypt(cls, encrypted_str: str) -> dict:
-        """Decrypt a base64-encoded string into a dictionary."""
+    def decrypt(cls, encrypted_str: str) -> dict | str:
+        """Decrypt a base64-encoded string into a dictionary or string.
+        
+        Args:
+            encrypted_str: Base64-encoded encrypted string.
+            
+        Returns:
+            Decrypted dictionary or string.
+            
+        Raises:
+            ValueError: If decryption fails.
+        """
         aesgcm = cls._get_aes_gcm()
         try:
             combined = base64.b64decode(encrypted_str)
@@ -64,7 +74,13 @@ class Encryption:
             ciphertext_with_tag = combined[12:]
             
             decrypted_data = aesgcm.decrypt(nonce, ciphertext_with_tag, None)
-            return json.loads(decrypted_data.decode('utf-8'))
+            decoded = decrypted_data.decode('utf-8')
+            
+            # Try to parse as JSON, return string if it fails
+            try:
+                return json.loads(decoded)
+            except json.JSONDecodeError:
+                return decoded
         except Exception as e:
             logger.error("Decryption failed: %s", e)
             raise ValueError("Decryption failed. Invalid data or key.")

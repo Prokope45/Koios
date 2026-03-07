@@ -181,8 +181,10 @@ async def process_query(
                     detail="Encrypted request required when ENABLE_ENCRYPTION is True."
                 )
             try:
+                logger.info(f"Received encrypted data: {request.encrypted_data}")
                 decrypted = Encryption.decrypt(request.encrypted_data)
                 actual_request = models.QueryRequest(**decrypted)
+                logger.info(f"Actual message: {actual_request.query}")
             except Exception as e:
                 raise HTTPException(status_code=400, detail=f"Decryption failed: {e}")
         else:

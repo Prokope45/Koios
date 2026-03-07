@@ -7,7 +7,7 @@
 COMPOSE = docker compose --project-directory . -f build/docker-compose.yml -f build/docker-compose.override.yml
 ENV_FILE = build/.env.build
 
-.PHONY: help setup build up down restart logs logs-ollama logs-api logs-streamlit ps rebuild clean clean-images reset
+.PHONY: help setup build up-d up down restart logs logs-ollama logs-api logs-streamlit ps rebuild clean clean-images reset
 
 # Default target
 .DEFAULT_GOAL := help
@@ -27,8 +27,11 @@ setup: ## Detect host OS and generate platform-specific configuration
 build: setup ## Detect platform, configure, and build all Docker images
 	@set -a && . $(ENV_FILE) && set +a && $(COMPOSE) build
 
-up: ## Start all services in detached mode
+up-d: ## Start all services in detached mode
 	$(COMPOSE) up -d
+
+up:  ## Start all services in non-detached mode
+	$(COMPOSE) up
 
 down: ## Stop and remove all containers
 	$(COMPOSE) down
