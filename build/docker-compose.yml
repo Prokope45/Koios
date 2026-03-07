@@ -65,6 +65,13 @@ services:
       retries: 3
       start_period: 40s
     restart: unless-stopped
+    labels:
+      - traefik.enable=true
+      - traefik.constraint-label=traefik-public
+      - traefik.docker.network=praestara_traefik-public
+      - traefik.http.routers.koios-api.rule=Host(`koios.localhost`)
+      - traefik.http.routers.koios-api.entrypoints=http
+      - traefik.http.services.koios-api.loadbalancer.server.port=8000
 
   # Streamlit service for web UI (uncomment to run)
   # streamlit:

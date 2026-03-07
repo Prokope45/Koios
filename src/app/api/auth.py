@@ -48,31 +48,40 @@ class Auth:
     _bearer_scheme = HTTPBearer()
 
     @classmethod
-    def check_ip_authorization(cls, client_ip: str) -> HTTPAuthorizationCredentials:
+    def check_ip_authorization(cls, client_ip: str) -> None:
         """Verify that the client IP is authorized to request tokens.
 
         This method checks if the provided client IP address is in the list
         of authorized IPs configured via the `AUTHORIZED_TOKEN_IPS` environment
         variable. The list always includes `127.0.0.1` and `::1` for local
         development.
+        
+        IP checking can be disabled by setting ENABLE_IP_WHITELIST=False in the
+        environment. When disabled, this method logs the IP but does not enforce
+        restrictions.
 
         Args:
             client_ip: The IP address of the client making the request.
 
         Returns:
-            HTTPAuthorizationCredentials: The credentials object (for FastAPI dependency injection).
+            None
 
         Raises:
-            HTTPException 401: If the client IP is not in the authorized list.
+            HTTPException 401: If IP whitelist is enabled and the client IP is not authorized.
 
         Example:
             @app.post("/token")
             async def get_token(
-                credentials: HTTPAuthorizationCredentials = Depends(Auth.check_ip_authorization),
+                client_ip: str = ...,
             ):
+                Auth.check_ip_authorization(client_ip)
                 # Token generation logic here
                 pass
         """
+        if not config.enable_ip_whitelist:
+            logger.info("IP whitelist disabled - accepting token request from IP '%s'", client_ip)
+            return
+        
         if client_ip not in config.authorized_token_ips:
             logger.warning(
                 "Token request denied for IP '%s' (not in authorized list)", client_ip

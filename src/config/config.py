@@ -115,6 +115,17 @@ class Config:
         return os.getenv("JWT_ISSUER", "koios-api")
 
     @property
+    def enable_ip_whitelist(self) -> bool:
+        """Toggle for IP whitelist enforcement on /token endpoint.
+        
+        When False, IP address checking is disabled and any IP can request tokens
+        (authentication still required via JWT, encryption, and user validation).
+        
+        Defaults to False. Set ENABLE_IP_WHITELIST=True to enable IP restrictions.
+        """
+        return os.getenv("ENABLE_IP_WHITELIST", "False").lower() == "true"
+
+    @property
     def authorized_token_ips(self) -> List[str]:
         """IP addresses permitted to call the `/token` endpoint.
 
