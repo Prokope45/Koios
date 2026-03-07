@@ -25,4 +25,5 @@ class GraphState(TypedDict):
     generation: str
     search_query: str
     context: str
+    custom_context: str
     history: Annotated[List[dict], operator.add]

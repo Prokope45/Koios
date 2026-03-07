@@ -34,29 +34,18 @@ class QueryRequest(BaseModel):
     temperature: Optional[float] = Field(0.5, description="Injected randomness into model")
     enable_internet_search: Optional[bool] = Field(False, description="Allow model to query the internet for context.")
 
-    if not config.enable_encryption:
-        model_config = {
-            "json_schema_extra": {
-                "examples": [
-                    {
-                        "query": "What is machine learning?",
-                        "model": None,
-                        "temperature": 0.7,
-                        "enable_internet_search": False
-                    }
-                ]
-            }
+    model_config = {
+        "json_schema_extra": {
+            "examples": [
+                {
+                    "query": "What is machine learning?",
+                    "model": None,
+                    "temperature": 0.7,
+                    "enable_internet_search": False
+                }
+            ]
         }
-    else:
-        model_config = {
-            "json_schema_extra": {
-                "examples": [
-                    {
-                        "encrypted_data": "_some_encrypted_data"
-                    }
-                ]
-            }
-        }
+    }
 
 
 class QueryResponse(BaseModel):

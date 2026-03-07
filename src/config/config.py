@@ -2,6 +2,7 @@ import os
 from typing import List, Optional
 from dotenv import load_dotenv
 from pathlib import Path
+from math import prod
 
 
 class Config:
@@ -85,19 +86,22 @@ class Config:
         return os.getenv("JWT_ALGORITHM", "HS256")
 
     @property
-    def jwt_expiry_hours(self) -> Optional[int]:
-        """Optional token expiry window in hours.
+    def jwt_expiry_seconds(self) -> Optional[int]:
+        """Optional token expiry window in seconds.
 
         When set, the API server will reject tokens whose `exp` claim
         indicates they have expired.  When absent (or empty), expiry is not
         enforced.
 
-        Read from `JWT_EXPIRY_HOURS`.
+        Read from `JWT_EXPIRY_SECONDS`.
         """
-        raw = os.getenv("JWT_EXPIRY_HOURS", "")
+        raw = os.getenv("JWT_EXPIRY_SECONDS", "")
         if raw.strip():
             try:
-                return int(raw.strip())
+                if '*' in raw:
+                    return prod([int(x) for x in raw.split('*')])
+                else:
+                    return int(raw.strip())
             except ValueError:
                 return None
         return None

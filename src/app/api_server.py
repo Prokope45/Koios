@@ -58,7 +58,7 @@ def verify_jwt_token(
     header.  The token is verified against `JWT_SECRET_KEY` using the
     algorithm specified by `JWT_ALGORITHM` (default: `HS256`).
 
-    When `JWT_EXPIRY_HOURS` is **not** set, the `exp` claim is not
+    When `JWT_EXPIRY_SECONDS` is **not** set, the `exp` claim is not
     enforced (tokens are accepted regardless of expiry).  When it is set,
     expired tokens are rejected.
 
@@ -85,7 +85,7 @@ def verify_jwt_token(
     # When expiry is not configured we instruct python-jose to skip the `exp`
     # claim check entirely by passing options={"verify_exp": False}.
     decode_options = {}
-    if config.jwt_expiry_hours is None:
+    if config.jwt_expiry_seconds is None:
         decode_options["verify_exp"] = False
 
     try:
@@ -185,7 +185,7 @@ async def get_token(
     * `sub` - the validated user identifier
     * `iss` - issuer string (`JWT_ISSUER`, default `"koios-api"`)
     * `iat` - UTC timestamp of issuance
-    * `exp` - expiry timestamp (only included when `JWT_EXPIRY_HOURS`
+    * `exp` - expiry timestamp (only included when `JWT_EXPIRY_SECONDS`
       is set)
 
     Args:
@@ -266,9 +266,9 @@ async def get_token(
         "iat": now,
     }
 
-    expiry_hours = config.jwt_expiry_hours
-    if expiry_hours is not None:
-        payload["exp"] = now + timedelta(hours=expiry_hours)
+    expiry_seconds = config.jwt_expiry_seconds
+    if expiry_seconds is not None:
+        payload["exp"] = now + timedelta(seconds=expiry_seconds)
 
     token = jwt.encode(payload, secret_key, algorithm=config.jwt_algorithm)
 
@@ -575,7 +575,8 @@ async def process_analysis(
         output = workflow.local_agent.invoke({
             "question": actual_request.prompt,
             "history": [],  # Stateless analysis
-            "context": toon_context,
+            "context": "",
+            "custom_context": toon_context,
             "generation": "",
             "search_query": "",
         })

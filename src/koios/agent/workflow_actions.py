@@ -76,11 +76,24 @@ class WorkflowActions:
         logger.info("Step: Generating Final Response")
         question = state["question"]
         history = state.get("history", [])
-        
-        # Ensure context is not None or empty if we skipped web search
-        context = state.get("context")
-        if not context:
+
+        # Merge retrieved context with any custom payload injected via the API.
+        retrieved_context = state.get("context") or ""
+        custom_context = state.get("custom_context") or ""
+
+        if retrieved_context and custom_context:
+            logger.info(f'  Sub-Step: Using document/websearch context and custom context')
+            context = f"{custom_context}\n\n{retrieved_context}"
+        elif custom_context:
+            logger.info(f'  Sub-Step: Using only custom context')
+            context = custom_context
+        elif retrieved_context:
+            logger.info(f'  Sub-Step: Using only document/websearch context')
+            context = retrieved_context
+        else:
+            logger.info(f'  Sub-Step: No additional context providing. Using internal knowledge')
             context = "No additional context provided. Answer based on your internal knowledge."
+
         results = {"context": context, "question": question, "history": history}
         generation = self.__agent_prompt.get_generate_chain.invoke(results)
         return {"generation": generation}
