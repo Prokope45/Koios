@@ -54,7 +54,7 @@ services:
       - ./temp_uploads:/app/temp_uploads
     networks:
       - koios_net
-      - praestara_traefik-public
+      - build_traefik-public
     depends_on:
       ollama:
         condition: service_healthy
@@ -68,7 +68,7 @@ services:
     labels:
       - traefik.enable=true
       - traefik.constraint-label=traefik-public
-      - traefik.docker.network=praestara_traefik-public
+      - traefik.docker.network=build_traefik-public
       - traefik.http.routers.koios-api.rule=Host(`koios.localhost`)
       - traefik.http.routers.koios-api.entrypoints=http
       - traefik.http.services.koios-api.loadbalancer.server.port=8000
@@ -108,7 +108,7 @@ services:
 networks:
   koios_net:
     driver: bridge
-  praestara_traefik-public:
+  build_traefik-public:
     external: true
 
 volumes:
