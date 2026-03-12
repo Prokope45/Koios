@@ -16,6 +16,7 @@ All containers can communicate with each other using service names (e.g., `http:
 
 - Docker Engine 20.10 or later
 - Docker Compose V2
+- `make` (pre-installed on macOS and most Linux distros; available via Git Bash on Windows)
 - At least 8GB of available RAM (for llama3.2 model)
 - At least 10GB of free disk space
 
@@ -44,17 +45,23 @@ ENABLE_INTERNET_SEARCH=False
 
 ### 2. Build the Containers
 
-`bash
-docker compose build
-`
+```bash
+make build
+```
 
-This will build the FastAPI and Streamlit containers. The Ollama container uses the official pre-built image.
+This single command will:
+1. **Detect your host OS** (macOS, Windows, or Linux)
+2. **Configure platform-specific settings** automatically:
+   - **macOS**: Enables Docker Desktop model runner on port 12434, skips GPU packages
+   - **Windows/Linux with NVIDIA GPU**: Enables GPU passthrough, installs CUDA packages
+   - **Windows/Linux without GPU**: Falls back to CPU-only configuration
+3. **Build all Docker images** with the appropriate settings
 
 ### 3. Start the Services
 
-`bash
-docker compose up -d
-`
+```bash
+make up
+```
 
 The first startup will take several minutes as Ollama downloads the llama3.2 model (~2GB).
 
@@ -62,13 +69,13 @@ The first startup will take several minutes as Ollama downloads the llama3.2 mod
 
 `bash
 # View all logs
-docker compose logs -f
+make logs
 
 # View specific service logs
-docker compose logs -f ollama
-docker compose logs -f api
-docker compose logs -f streamlit
-`
+make logs-ollama
+make logs-api
+make logs-streamlit
+```
 
 ### 5. Access the Services
 
@@ -77,6 +84,55 @@ Once all services are healthy:
 - **Streamlit UI**: http://localhost:8501
 - **FastAPI Docs**: http://localhost:8000/docs
 - **Ollama API**: http://localhost:11434
+
+## Available Make Commands
+
+```
+make help          Show all available commands
+make setup         Detect host OS and generate platform-specific configuration
+make build         Detect platform, configure, and build all Docker images
+make up            Start all services in detached mode
+make down          Stop and remove all containers
+make restart       Restart all services
+make logs          Tail logs for all services
+make logs-ollama   Tail Ollama service logs
+make logs-api      Tail API service logs
+make logs-streamlit Tail Streamlit service logs
+make ps            Show status of all containers
+make rebuild       Force rebuild all images without cache
+make clean         Stop containers, remove volumes, and delete generated config files
+make clean-images  Remove Koios Docker images
+make reset         Full reset: remove containers, volumes, images, and generated files
+```
+
+## Platform-Specific Behavior
+
+### macOS
+- GPU passthrough is **not** supported on macOS Docker
+- Docker Desktop model runner is automatically enabled on TCP port 12434 for efficient LLM inference
+- NVIDIA/CUDA Python packages are **not** installed
+- `docker-compose.override.yml` is generated with `OLLAMA_NUM_GPU=0`
+
+### Windows / Linux with NVIDIA GPU
+- GPU passthrough is enabled via the NVIDIA container runtime
+- CUDA and NVIDIA Python packages are installed from `src/requirements-gpu.txt`
+- `docker-compose.override.yml` is generated with full GPU reservation settings
+- `OLLAMA_NUM_GPU=99` is set for maximum GPU utilization
+
+### Windows / Linux without NVIDIA GPU
+- Falls back to CPU-only configuration
+- No GPU packages installed
+
+## How It Works
+
+The build system uses three auto-generated files (excluded from git):
+
+| File | Purpose |
+|------|---------|
+| `docker-compose.override.yml` | Injects GPU deploy settings and `OLLAMA_NUM_GPU` for the Ollama container |
+| `.env.build` | Sets `INSTALL_GPU_PACKAGES=true/false` for Dockerfile build args |
+
+Docker Compose automatically merges `docker-compose.override.yml` with `docker-compose.yml` at runtime, so no manual file editing is needed.
 
 ## Using the FastAPI Endpoint
 
@@ -138,36 +194,41 @@ curl -X POST http://localhost:8000/query \
 
 ### Stop the Services
 
-`bash
-docker compose down
-`
+```bash
+make down
+```
 
-### Stop and Remove Volumes (including model data)
+### Restart All Services
 
-`bash
-docker compose down -v
-`
-
-### Restart a Specific Service
-
-`bash
-docker compose restart api
-docker compose restart streamlit
-docker compose restart ollama
-`
+```bash
+make restart
+```
 
 ### View Container Status
 
-`bash
-docker compose ps
-`
+```bash
+make ps
+```
 
 ### Rebuild After Code Changes
 
-`bash
-docker compose build api streamlit
-docker compose up -d
-`
+```bash
+make build
+make up
+```
+
+### Force Rebuild Without Cache
+
+```bash
+make rebuild
+make up
+```
+
+### Full Reset (removes everything)
+
+```bash
+make reset
+```
 
 ## Troubleshooting
 
@@ -177,19 +238,29 @@ If the Ollama container fails to pull the model:
 
 `bash
 # Check Ollama logs
-docker compose logs ollama
+make logs-ollama
 
 # Manually pull the model
-docker compose exec ollama ollama pull llama3.2
-`
+docker compose exec ollama ollama pull llama3.2:3b
+```
 
 ### API Connection Issues
 
 If the API can't connect to Ollama:
 
-1. Verify Ollama is healthy: `docker compose ps`
+1. Verify Ollama is healthy: `make ps`
 2. Check the network: `docker network inspect koios_koios_net`
 3. Verify environment variable: `OPENAI_URL=http://ollama:11434`
+
+### macOS: Docker Model Runner Issues
+
+If the Docker Desktop model runner fails to enable automatically:
+
+```bash
+docker desktop enable model-runner --tcp 12434
+```
+
+Then re-run `make build`.
 
 ### Port Conflicts
 
@@ -210,17 +281,11 @@ If containers crash due to memory:
 
 ### Rebuilding from Scratch
 
-`bash
-# Stop and remove everything
-docker compose down -v
-
-# Remove images
-docker rmi koios-api koios-streamlit
-
-# Rebuild
-docker compose build --no-cache
-docker compose up -d
-`
+```bash
+make reset
+make build
+make up
+```
 
 ## Development Mode
 
