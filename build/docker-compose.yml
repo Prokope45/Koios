@@ -24,8 +24,8 @@ services:
         ollama serve &
         sleep 5
         ollama pull llama3.2:3b
-        ollama run llama3.2:3b
-        # ollama pull gemma3:12b-it-qat
+        # ollama run llama3.2:3b
+        # ollama pull gemma3:12b
         # ollama pull llama3.2:3b-instruct-fp16
         # ollama pull mistral-nemo:12b-instruct-2407-q8_0
         wait
