@@ -123,7 +123,7 @@ class DetailItem(BaseModel):
         description (str): Explanation of what the detail means.
     """
     key: str
-    value: float
+    value: float | int | str
     description: str
 
 
@@ -174,4 +174,3 @@ class AnalyzeResponse(BaseModel):
     generation: str
     model: str
     details: List[DetailItem]
-

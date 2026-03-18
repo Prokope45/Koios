@@ -440,7 +440,8 @@ async def process_analysis(
             details=actual_request.details,
         )
         return _wrap_response(response_obj)
-    except HTTPException:
+    except HTTPException as http_err:
+        logger.error(f"Failed to process analysis: {http_err}")
         raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
