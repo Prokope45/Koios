@@ -44,6 +44,6 @@ The available options are:
 *   Question: "What is 2 + 2?" -> {{"choice": "generate"}}
 *   Question: "Who are you?" -> {{"choice": "generate"}}
 ---
-Route the following question. Reply with only the JSON object, no other text.
+Route the following user input. Reply with only the JSON object, no other text.
 
-Question: {question}
+User Input: {question}

@@ -431,7 +431,6 @@ async def process_analysis(
         })
 
         generation = output.get("generation", "No generation produced.")
-
         response_obj = models.AnalyzeResponse(
             prompt=actual_request.prompt,
             user_id=user_id,
