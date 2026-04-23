@@ -3,6 +3,6 @@ More often than not, a user will ask a basic question that they wish to learn mo
 Reword their query to be the most effective web search string possible.
 Return the JSON with a single key 'query' with no preamble or explanation.
 ---
-Transform the following question into an optimised web search query. Reply with only the JSON object, no other text.
+Transform the following user input into an optimised web search query. Reply with only the JSON object, no other text.
 
-Question: {question}
+User Input: {question}
