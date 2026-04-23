@@ -8,7 +8,7 @@ version 0.1.0
 from typing_extensions import TypedDict
 
 
-from typing import List, Annotated
+from typing import List, Annotated, Optional
 import operator
 
 class GraphState(TypedDict):
@@ -26,4 +26,5 @@ class GraphState(TypedDict):
     search_query: str
     context: str
     custom_context: str
+    override: Optional[str]
     history: Annotated[List[dict], operator.add]

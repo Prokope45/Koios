@@ -222,6 +222,11 @@ class WorkflowActions:
         Returns:
             str: Next node to call — either 'doc_search' or 'generate'.
         """
+        override = state.get("override")
+        if override and override in ("doc_search", "web_search", "generate"):
+            logger.info(f"Step: Overriding router, jumping directly to: {override}")
+            return override
+
         logger.info("Step: Routing Query")
         question = state['question']
         output = self.__agent_prompt.get_router_chain.invoke(

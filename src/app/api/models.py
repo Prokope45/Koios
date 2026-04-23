@@ -33,6 +33,7 @@ class QueryRequest(BaseModel):
     )
     temperature: Optional[float] = Field(0.5, description="Injected randomness into model")
     enable_internet_search: Optional[bool] = Field(False, description="Allow model to query the internet for context.")
+    override: Optional[str] = Field("generate", description="Override the workflow action (e.g. doc_search, web_search, generate).")
 
     model_config = {
         "json_schema_extra": {
@@ -41,7 +42,8 @@ class QueryRequest(BaseModel):
                     "query": "What is machine learning?",
                     "model": None,
                     "temperature": 0.7,
-                    "enable_internet_search": False
+                    "enable_internet_search": False,
+                    "override": "generate"
                 }
             ]
         }
@@ -142,6 +144,10 @@ class AnalyzeRequest(BaseModel):
         0.5,
         description="Injected randomness into model."
     )
+    override: Optional[str] = Field(
+        "generate",
+        description="Override the workflow action (e.g. doc_search, web_search, generate)."
+    )
 
     model_config = {
         "json_schema_extra": {
@@ -160,7 +166,8 @@ class AnalyzeRequest(BaseModel):
                             "description": "Percentage of tasks completed in the current sprint"
                         }
                     ],
-                    "temperature": 0.5
+                    "temperature": 0.5,
+                    "override": "generate"
                 }
             ]
         }
