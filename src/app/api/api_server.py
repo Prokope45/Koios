@@ -227,6 +227,7 @@ async def process_query(
             "context": "",
             "generation": "",
             "search_query": "",
+            "override": actual_request.override
         })
 
         generation = output.get("generation", "No generation produced.")
@@ -262,6 +263,7 @@ async def process_query(
 async def process_query_stateless(
     query: str,
     model: Optional[str] = None,
+    override: Optional[str] = None,
     user_id: str = Depends(Auth.get_current_user),
 ):
     """Process a RAG query via GET request (stateless, no history).
@@ -299,6 +301,7 @@ async def process_query_stateless(
             "context": "",
             "generation": "",
             "search_query": "",
+            "override": override
         })
 
         generation = output.get("generation", "No generation produced.")
@@ -428,6 +431,7 @@ async def process_analysis(
             "custom_context": toon_context,
             "generation": "",
             "search_query": "",
+            "override": getattr(actual_request, "override", None) or "generate"
         })
 
         generation = output.get("generation", "No generation produced.")
